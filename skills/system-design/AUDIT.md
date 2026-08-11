@@ -4,6 +4,8 @@ The audit protocol [SKILL.md](SKILL.md) runs at **Audit the architecture for deb
 
 The subject is the gap between the architecture that is intended and the architecture that exists. Reusable mechanisms and decision ladders stay in [HEURISTICS.md](HEURISTICS.md); this file owns only what it takes to find, disprove, and record a finding.
 
+**This is a survey, not a rescue.** It reports; it never edits. Every remedy is a proposal for a later session to accept, reject, or schedule, and a repository deep in debt will get real findings without getting a way out of the mud. Say so in the report, so nobody reads a list of findings as a plan of record.
+
 ## Contents
 
 - [What counts as debt](#what-counts-as-debt) — the four tests, and what is excluded
@@ -29,9 +31,9 @@ A candidate finding is debt only if it passes all four tests. Each is a separate
 | **Unstated** | Was the cost written down? | The design names the trade-off and accepts it — a trade-off is not debt, an undeclared one is |
 | **Live** | Does anyone touch it? | The components carry no changes in the observed history and sit outside the primary flow |
 
-The fourth test is the one most audits skip. Complexity that is never read and never edited costs almost nothing; the same complexity on a path the team works weekly is expensive. Weight every finding by how often its components actually change, and say when that history was unavailable.
+Weight every finding by how often its components actually change, and say when that history was unavailable. Complexity nobody reads and nobody edits costs almost nothing; the same complexity on a path the team works weekly is expensive.
 
-Two exclusions worth stating because they are tempting. Unexercised flexibility built for a future that never arrived **is** debt — it constrains change without paying for itself. A deliberately simple starting point that says it is one, and names the condition that would force the next step, **is not** — that is a design, and reporting it as debt punishes exactly the discipline the process asks for.
+Two exclusions, both tempting. Unexercised flexibility built for a future that never arrived **is** debt — it constrains change without paying for itself. A deliberately simple starting point that says it is one, and names the condition that would force the next step, **is not** — that is a design, and reporting it as debt punishes exactly the discipline the process asks for.
 
 ## The pipeline
 
@@ -50,13 +52,11 @@ Stages pass conclusions, never arguments. A stage that reads the previous stage'
 | 6 | **Merge** | always | the prior run joined in, baseline states set |
 | 7 | **Record** | always | the `debt` object, including what could not be established |
 
-Only stages 1 to 3 carry the argument. Stage 0 is reading the repository, stage 4 is a table lookup, and 5 to 7 are authorship and bookkeeping. They are listed separately because each has a different input and a different output contract, and an agent executing them needs the boundary — not because eight mechanisms were separately justified. If a run has budget for one thing, it is generating findings per category and then trying to destroy them.
+Only stages 1 to 3 carry the argument; the rest is reading, a lookup, and bookkeeping. Spend the budget on generating findings per category and then trying to destroy them.
 
 **Provisional severity gates depth, verified severity is what ships.** The consequence and exposure a finder claims give a provisional severity by the same lookup the verified one uses, and that provisional value decides how many lenses stage 3 spends. Stage 4 then recomputes severity from what survived. A claim that asserts `blocking` earns both lenses and may still end up `low`.
 
 ### Kill rules
-
-The lenses are not interchangeable and their verdicts do not carry the same weight.
 
 | Verdict | Effect | Why |
 |---|---|---|
@@ -65,23 +65,23 @@ The lenses are not interchangeable and their verdicts do not carry the same weig
 | **Unstated** refuted | Drop `confidence` one level, and the objection becomes the finding's disconfirming line | Whether a trade-off is adequately stated is a judgement, and a wrong deletion is invisible |
 | **Live** refuted | Set `exposure` to `off-path` | Change history is a proxy, so this lowers the finding rather than removing it — and an untouched component on the primary flow can still break |
 
-A deletion is silent and a survival is visible. Reserve deletion for the two verdicts that make the finding factually wrong, and let the reader adjudicate the rest.
+Deletion is silent, survival is visible: reserve it for the two verdicts that make a finding factually wrong, and let the reader adjudicate the rest.
 
-Neither survivable verdict writes `severity` directly. `severity` has exactly one source — the lookup in [Severity](#severity) — so a lens that lowers a finding does it by moving an **input**: *Live* moves `exposure`, and *Unstated* moves `confidence`, which is a separate axis the lookup never reads. Stage 4 then re-derives severity from whatever the lenses left, and a reader who disagrees is arguing with an axis rather than with a verdict that appeared from nowhere.
+`severity` has exactly one source — the lookup in [Severity](#severity) — so a lens that lowers a finding moves an **input** instead: *Live* moves `exposure`, *Unstated* moves `confidence`, which the lookup never reads. Stage 4 re-derives from whatever the lenses left, so a reader who disagrees is arguing with an axis rather than a verdict that appeared from nowhere.
 
 ### Tools
 
-Use whatever verification a harness offers — repository search, documentation lookup, a verification tool — at your discretion, and record which ones actually ran. **The audit must complete when none of them exist.** A finding verified only against the repository is still a finding; it carries lower confidence and says so. Never let an absent tool become an absent finding, and never let its absence go unmentioned.
+Use whatever verification a harness offers — repository search, documentation lookup, a verification tool — at your discretion, and record which ones actually ran. **The audit completes when none of them exist.** A finding verified only against the repository is still a finding: it carries lower confidence, names the check it could not make, and ships.
 
 Network lookup is confined to `obsolescence`, the one category a repository cannot answer for itself: whether a dependency is abandoned, whether a version is superseded, whether a technique has a known failure the repository has not met yet. Every other category is decided from the repository and its history. Send a package name, a version, or a technique name; never the design, the topology, or the code. Where the harness has no network, `obsolescence` findings carry low confidence and say which lookup was unavailable.
 
 ### Without a subagent
 
-The stages are the contract; delegating them is an optimisation. Where a subagent primitive exists, run stage 1 as one agent per category and stage 3 as one agent per lens, and merge. Where it does not, run the same stages inline as separate passes, restating the brief and discarding the prior stage's reasoning at each boundary. What must not happen is a single pass that finds and judges at once.
+The stages are the contract; delegating them is an optimisation. Where a subagent primitive exists, run stage 1 as one agent per category and stage 3 as one agent per lens, and merge. Where it does not, run the same stages inline as separate passes, restating the brief and discarding the prior stage's reasoning at each boundary. Finding and judging stay in separate passes either way.
 
 ## Stage briefs
 
-Each brief states its input, its output, and the framing it must be run under. The framing is load-bearing, not decoration: a verification prompt that opens by describing the design as careful or reviewed suppresses the very findings it was asked for.
+The framing each stage runs under is load-bearing: a verification prompt that opens by describing the design as careful or reviewed suppresses the very findings it was asked for.
 
 **Stage 0 — Facts.** Collect without judging. The component graph and every edge with its declared contract; every ADR with its status and the structures it decided; change counts per path over the observed window; pairs of paths that change in the same commit; the estimate rows; and the identifier of every invariant and non-functional target so later stages can cite them. Record the window and any part of the history that was unavailable. Emit no verdicts — a fact block containing an opinion contaminates every stage after it.
 
@@ -194,7 +194,7 @@ Every pattern carries a **Not when** clause. Without one a signature gets matche
 | `stale-reference-model` | The design or an ADR describes something the code has deliberately and correctly moved past | **Update the document.** The finding is against the reference model, not the system | The code is wrong and the document is right — then it is a different finding |
 | `abandoned-component` | A component with no inbound edges and no external trigger | Remove it | It is invoked out of band — by an operator, a schedule, or a disaster path — and that is recorded |
 
-`stale-reference-model` is the finding an audit is most likely to get backwards. The intended architecture is not the day-one architecture; it is what the team currently wants. When the implementation has moved on for good reasons and nobody updated the design, the debt is in the document. Raising that as an architecture violation punishes correct work and teaches people to distrust the audit.
+`stale-reference-model` is the finding an audit is most likely to get backwards. The intended architecture is what the team currently wants, not what it wrote on day one. When the implementation has moved on for good reasons and nobody updated the design, the debt is in the document — and raising that as a violation punishes correct work.
 
 ## Severity
 
@@ -220,7 +220,7 @@ Rules that keep the scale honest:
 
 ## Suppressions
 
-These are findings that must not be raised. Each one is a pattern that looks like debt and is not. Check them before emitting, and again in the *Unstated* lens.
+Patterns that look like debt and are not. Check them before emitting, and again in the *Unstated* lens.
 
 **About repetition and duplication.** Identical code is not duplicated knowledge — two rules that happen to coincide today and would change for different reasons tomorrow are correctly separate. Deliberate near-duplication can encode a different intent. Duplication against an external contract you do not control is unavoidable; report it as something to mitigate, never to eliminate. A cached derived value is only a finding when the duplication escapes its module. Where decoupling is the stated goal, duplication is the intended trade and not a defect.
 
@@ -255,7 +255,7 @@ A finding must survive a re-run. Prose will be rewritten every time and must not
 id = "dbt-" + pattern + "--" + sorted(componentIds).join("-")
 ```
 
-Nothing else contributes. No line numbers, no file paths, no position in an array, no timestamp, no hash of the explanation — each of those changes for reasons that have nothing to do with whether the finding is the same finding. Component ids are already stable across every architecture in the file, which makes them the one identifier here that a rename cannot break.
+Nothing else contributes: line numbers, paths, array position, timestamps and prose hashes all move for reasons unrelated to whether it is the same finding. Component ids are already stable across every architecture in the file, which makes them the one identifier here a rename cannot break.
 
 Record the ingredients alongside the id, so a later run can match on something better without re-deriving them from prose:
 
@@ -291,4 +291,8 @@ Three things belong there beyond the findings themselves.
 
 The disconfirming line is the strongest objection the red team actually raised and the finding survived. It is not a self-authored counterargument: the agent that raised a finding writes a weak case against it, and a weak case against it is worse than none.
 
-State the audit's own limits in the report. Findings that reappear are matched reliably; whether the same audit run twice would surface the same set is not something this process can promise, and a report that claims completeness it does not have costs more than the findings are worth.
+State the audit's own limits in the report, in its own voice. Two of them, both load-bearing:
+
+**A finding that reappears is matched reliably. The set itself is not stable.** Run twice, get a different list — the identity scheme fixes what happens to a finding that returns, and promises nothing about which findings return. A report that claims completeness it does not have costs more than the findings are worth.
+
+**This does not converge, and it is not meant to be looped.** A pass is a list of leads. Acting on the ones with a citation behind them and stopping is the intended use; running it repeatedly until it comes back clean is not, because it will not. Where a run genuinely found little, the severities say so — a page of `low` is the audit reporting a quiet system in the only way it has.
