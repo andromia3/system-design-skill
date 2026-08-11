@@ -31,9 +31,11 @@ The operating envelope placed the pressure on collaboration fan-out and recovery
 
 The recommendation favored the unified sync service because only it changed the storage model responsible for the stated failures. Migration cost remained a first-class comparison axis because this was an existing system, not a blank slate.
 
+Once the recommendation was settled, it audited the system it had started from — the implemented architecture against the design and ADRs the repository says it intended — and recorded what had come apart, each finding with its evidence, a remedy, and the strongest objection it survived.
+
 ## Artifacts
 
-Every run writes the same three, beside each other:
+Every run writes the same three, beside each other. In repository mode the debt findings live inside `design.json`, which makes it the register where an accepted finding stays accepted, and they render on their own tab:
 
 - `docs/design/<slug>/DESIGN.md` — the readable design
 - `docs/design/<slug>/design.json` — the structured source of truth

@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented here.
 
+## 1.1.0 — 2026-08-11
+
+### Added
+
+- Repository runs now audit the architecture they started from. The skill drew candidates and never graded the system already in front of it, so a codebase that had come apart from its recorded design got redrawn rather than examined. A new step compares the implemented architecture against the intended one — the recorded design and the accepted ADRs — and reports where the two have separated. Greenfield runs skip it; there is nothing implemented to audit.
+- Findings have to survive being disproved. A model is an unreliable detector of architectural problems and a reliable disprover of them, so candidates are generated cheaply per category, put through gates that check whether the repository actually does the thing and whether anyone still touches it, then handed to verifiers that see the claim but never the argument behind it. Deletion is reserved for the two verdicts that make a finding factually wrong; the two that are judgement calls demote and print their objection instead, because a wrong deletion is invisible and a wrong demotion is not.
+- `design.json` gains a `debt` register. `status`, `justification`, `acceptedUntil`, `firstSeen`, and `aliases` are carried forward across runs, so a finding you have accepted stays accepted; everything else is regenerated. A finding's identity is its pattern and its components and nothing else — prose is rewritten every run, and a line number moves for reasons that have nothing to do with whether it is the same finding.
+- A `#debt` tab, present only when a design carries findings. Findings group by category and sort by severity then confidence, each a native disclosure whose collapsed row carries everything worth searching for. Filtering hides rows that already exist rather than rebuilding the list, so an expanded finding stays expanded, and group counts relabel to `k of N` while a filter is applied. Accepted findings and ones no longer present stay on the page in their own sections.
+- The report prints. There was no print stylesheet at all, so a printed report contained whichever tab happened to be open, with every collapsed row still collapsed. Every panel and every disclosure now opens for print, and severity is a bordered text chip rather than a filled badge — browsers drop backgrounds when printing, and colour alone carries no meaning to a reader who cannot see it.
+
+### Fixed
+
+- Any in-page anchor threw the reader to the overview tab and scrolled to the top. The router read the whole hash as a tab name, so `#anything-else` fell through to the fallback. The tab is now the part before the first slash, and the remainder selects and opens a finding.
+- The arrow keys were guarded only against text inputs, so moving between buttons on a non-architecture tab flung the reader into the architecture carousel.
+- `label-occlusions` has been asserted by the browser test since 1.0.1, but `SKILL.md` and `HTML-REPORT.md` both still told a run to check four diagnostics. The documented `DESIGN.md` section order was also missing `Database schemas`, and the version invariant named two files where the contract test enforces three.
+
 ## 1.0.2 — 2026-07-31
 
 ### Changed

@@ -2,7 +2,7 @@
 
 Canonical repository: <https://github.com/pinchen147/system-design-skill>
 
-Release: <https://github.com/pinchen147/system-design-skill/releases/tag/v1.0.0>
+Release: <https://github.com/pinchen147/system-design-skill/releases/tag/v1.1.0>
 
 Install:
 
@@ -47,6 +47,7 @@ The failure I wanted to fix was familiar: ask an agent to design a system and it
 4. Derive QPS, storage, bandwidth, concurrency, burst, skew, and fan-out.
 5. Aim for three structurally distinct candidates that survive the envelope and invariants.
 6. Compare them using numbers, failure modes, migration cost, and operating constraints.
+7. Audit the implemented architecture against the intended one, and report the debt between them.
 
 It outputs a self-contained single-page HTML report, a structured `design.json`, and a durable `DESIGN.md`.
 

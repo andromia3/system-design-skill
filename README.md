@@ -2,7 +2,7 @@
 
 **System design from evidence, not vibes.**
 
-`/system-design` takes you from an incomplete idea or an existing codebase to a defensible architecture decision. It sizes the ask before it starts, and answers small or already-settled questions directly instead of manufacturing a document. When the decision earns the process, it discovers what the repository already proves, asks you only for the requirements it cannot recover, derives the system’s entities, invariants, interfaces, data and consistency model, scale envelope, and critical flows, then fully draws only the candidate architectures the evidence leaves viable. It compares their strengths and weaknesses and recommends one. Outputs a self-contained single-page HTML report, a structured `design.json` source of truth, and a durable `DESIGN.md` that records the reasoning and can be resumed in future agent sessions. Designs with structured persistence include intuitive database schemas—essential fields, keys, relationships, and indexes—rather than executable DDL.
+`/system-design` takes you from an incomplete idea or an existing codebase to a defensible architecture decision. It sizes the ask before it starts, and answers small or already-settled questions directly instead of manufacturing a document. When the decision earns the process, it discovers what the repository already proves, asks you only for the requirements it cannot recover, derives the system’s entities, invariants, interfaces, data and consistency model, scale envelope, and critical flows, then fully draws only the candidate architectures the evidence leaves viable. It compares their strengths and weaknesses and recommends one. In an existing repository it also audits what was built against what was intended, and reports the architectural debt between them with a remedy and the evidence behind each finding. Outputs a self-contained single-page HTML report, a structured `design.json` source of truth, and a durable `DESIGN.md` that records the reasoning and can be resumed in future agent sessions. Designs with structured persistence include intuitive database schemas—essential fields, keys, relationships, and indexes—rather than executable DDL.
 
 ![A complete system architecture fitted inside the generated HTML report, with conventional component shapes and a permanent flow sidebar](docs/assets/system-design-report.png)
 
@@ -174,7 +174,17 @@ The highest-pressure decisions receive deeper treatment, including:
 
 A run is complete only when critical flows reach named final effects, invariants and ownership are explicit, dependencies and authoritative stores carry bounded failure/recovery contracts, candidates name what fails first, and the recommendation is falsifiable. Unresolved facts remain visible assumptions or measurements, and artifacts must pass structural and render checks.
 
-### 9. Produces the report and durable design
+### 9. Audits the architecture that already exists
+
+Repository runs end by grading the system they started from. The audit compares the implemented architecture against the one the repository says it intended — the recorded design and the accepted ADRs — and reports where the two have come apart.
+
+A finding is not raised because something looks unusual. It has to name what it costs, cite the file or decision it rests on, and survive an attempt to disprove it: a model is an unreliable detector of architectural problems and a reliable disprover of them, so findings are generated cheaply and then have to get past verifiers that never see the argument that produced them. The strongest objection a finding survived is printed beside it.
+
+Each one carries a remedy — cut, consolidate, extract, replace, isolate, or document — with what it costs and whether it can be undone. Severity is looked up from two recorded axes rather than chosen, so you can disagree with an input instead of a verdict. Nothing is scored, and nothing is estimated in hours: those numbers have no calibration behind them.
+
+Greenfield runs skip this entirely. There is no implemented architecture to audit.
+
+### 10. Produces the report and durable design
 
 The skill writes the structured source first, generates the Markdown design from it, and renders the standalone report.
 
@@ -184,7 +194,8 @@ The HTML opens with the entire architecture fitted in view. Each candidate remai
 - use `−`, `+`, or `Fit` for direct viewport control;
 - select a flow from the permanent right sidebar to trace every numbered step;
 - click a component to inspect its responsibility, technology, connections, and flows;
-- compare every candidate and its trade-offs without leaving the page.
+- compare every candidate and its trade-offs without leaving the page;
+- read the debt findings on their own tab, grouped by category, filtered by severity or component, and linkable one at a time.
 
 The report is self-contained and makes no network requests. Copy it, email it, or open it directly in any browser.
 
@@ -192,7 +203,7 @@ The report is self-contained and makes no network requests. Copy it, email it, o
 
 | Artifact | Purpose |
 |---|---|
-| `docs/design/<slug>/design.json` | Source of truth for requirements, estimates, components, flows, candidates, and the recommendation |
+| `docs/design/<slug>/design.json` | Source of truth for requirements, estimates, components, flows, candidates, and the recommendation — and, in repository mode, the debt register, where a finding you have accepted stays accepted across runs |
 | `docs/design/<slug>/DESIGN.md` | Durable design document for humans and future agent sessions |
 | `$TMPDIR/system-design-<slug>.html` | Self-contained interactive report, regenerated from `design.json` |
 | `docs/adr/NNNN-<slug>.md` | Offered in repository mode once you pick a winner, so future sessions do not re-litigate it |
@@ -210,6 +221,9 @@ Run `/system-design` again for the same system and it resumes from `design.json`
 - Present one preferred design and two incomplete straw men.
 - Treat caches, indexes, or queues as authoritative without saying so.
 - Hand-edit the rendered HTML instead of updating the design source.
+- Score architectural debt, or estimate remediation in hours or currency.
+- Raise a finding it cannot evidence, or one a recorded decision already settles.
+- Recommend a rewrite. Remedies are incremental, and work that is not gets scheduled and named as such.
 
 ## How it is built
 
@@ -223,6 +237,7 @@ The skill is plain Markdown plus a self-contained report renderer:
 | [`ARCHETYPES.md`](skills/system-design/ARCHETYPES.md) | Canonical system patterns and failure modes |
 | [`HTML-REPORT.md`](skills/system-design/HTML-REPORT.md) | `design.json` schema and output contract |
 | [`EXAMPLES.md`](skills/system-design/EXAMPLES.md) | Conditional BAD/GOOD contrasts for making a generic first draft operationally specific |
+| [`AUDIT.md`](skills/system-design/AUDIT.md) | Debt taxonomy, the verification pipeline, and the findings that must not be raised |
 | [`assets/report-template.html`](skills/system-design/assets/report-template.html) | Interactive renderer with no runtime dependencies |
 | [`scripts/render_report.py`](skills/system-design/scripts/render_report.py) | Injects `design.json` into the template |
 
