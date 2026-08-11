@@ -1,6 +1,6 @@
 # Debt audit
 
-The audit protocol [SKILL.md](SKILL.md) runs at **Audit the architecture for debt**, after the candidates are drawn and before anything is rendered. Repository mode only: an audit needs an implemented architecture to compare against, and greenfield has none.
+The audit protocol [SKILL.md](SKILL.md) runs at **Audit the architecture for debt**, after the recommendation is settled and before anything is rendered. It runs that late because a finding's exposure is measured against the candidate the run recommends, which does not exist until then. Repository mode only: an audit needs an implemented architecture to compare against, and greenfield has none.
 
 The subject is the gap between the architecture that is intended and the architecture that exists. Reusable mechanisms and decision ladders stay in [HEURISTICS.md](HEURISTICS.md); this file owns only what it takes to find, disprove, and record a finding.
 
@@ -50,7 +50,7 @@ Stages pass conclusions, never arguments. A stage that reads the previous stage'
 | 6 | **Merge** | always | the prior run joined in, baseline states set |
 | 7 | **Record** | always | the `debt` object, including what could not be established |
 
-**Provisional severity gates depth, verified severity is what ships.** Stage 2 computes a provisional severity from the claim so stage 3 knows how hard to push; stage 4 recomputes it from what survived. A claim that asserts `blocking` earns four adversaries and may still end up `low`.
+**Provisional severity gates depth, verified severity is what ships.** The consequence and exposure a finder claims give a provisional severity by the same lookup the verified one uses, and that provisional value decides how many lenses stage 3 spends. Stage 4 then recomputes severity from what survived. A claim that asserts `blocking` earns both lenses and may still end up `low`.
 
 ### Kill rules
 
@@ -67,7 +67,7 @@ A deletion is silent and a demotion is visible. Reserve deletion for the two ver
 
 ### Tools
 
-Use whatever verification a harness offers — repository search, web search, documentation lookup, a verification skill — at your discretion, and record which ones actually ran. **The audit must complete when none of them exist.** A finding verified only against the repository is still a finding; it carries lower confidence and says so. Never let an absent tool become an absent finding, and never let its absence go unmentioned.
+Use whatever verification a harness offers — repository search, documentation lookup, a verification tool — at your discretion, and record which ones actually ran. **The audit must complete when none of them exist.** A finding verified only against the repository is still a finding; it carries lower confidence and says so. Never let an absent tool become an absent finding, and never let its absence go unmentioned.
 
 ### Without a subagent
 
@@ -109,7 +109,7 @@ Each brief states its input, its output, and the framing it must be run under. T
 
 ## Categories and patterns
 
-Seven categories, closed. The category is the grouping axis; the pattern is the rule. Where a finding genuinely affects several characteristics, name one category and list the rest under `affects` using the ratings axes — forcing a multi-quality problem into a single bucket loses the part that was not chosen, and loses it silently.
+Seven categories, closed. The category is the grouping axis; the pattern is the rule. Where a finding genuinely affects several characteristics, name one category and list the rest under `affects` using the ratings axes in [HTML-REPORT.md](HTML-REPORT.md#designjson-schema) — forcing a multi-quality problem into a single bucket loses the part that was not chosen, and loses it silently.
 
 Every pattern carries a **Not when** clause. Without one a signature gets matched against a system it does not fit, and the audit spends its credibility on a design that was right.
 
@@ -133,7 +133,7 @@ Every pattern carries a **Not when** clause. Without one a signature gets matche
 | `dual-write` | A flow writes two stores in sequence with no outbox, change log, or compensation | Tail the authority's change log, or write an outbox row in the effect's transaction | The second write is a cache whose staleness bound is stated |
 | `derived-without-source` | A component marked derived names no reconstruction input | Name the authoritative source, or reclassify it as authoritative | It starts empty and repopulates on demand, and the cold-start cost is stated |
 | `derived-without-cursor` | A derived component names a source but no durable position | Record the cursor that proves how far the source has been applied | The view is rebuilt whole on every refresh and the rebuild cost is stated |
-| `unstated-conflict-resolution` | An entity reachable by concurrent writers with no per-field-class resolution, or whole-entity last-write-wins beside a claim that no write is lost | Apply the conflict-resolution ladder, and name what the chosen rule discards | Writes for one entity are routed to a single home and the routing is enforced |
+| `unstated-conflict-resolution` | An entity reachable by concurrent writers with no per-field-class resolution, or whole-entity last-write-wins beside a claim that no write is lost | Apply the conflict-resolution ladder in [HEURISTICS.md](HEURISTICS.md#replication-and-consistency), and name what the chosen rule discards | Writes for one entity are routed to a single home and the routing is enforced |
 
 ### coupling — what cannot move without something else moving
 
@@ -218,7 +218,7 @@ These are findings that must not be raised. Each one is a pattern that looks lik
 
 **About repetition and duplication.** Identical code is not duplicated knowledge — two rules that happen to coincide today and would change for different reasons tomorrow are correctly separate. Deliberate near-duplication can encode a different intent. Duplication against an external contract you do not control is unavoidable; report it as something to mitigate, never to eliminate. A cached derived value is only a finding when the duplication escapes its module. Where decoupling is the stated goal, duplication is the intended trade and not a defect.
 
-**About simplicity.** A single node, a single store, a synchronous call, a monolith, or a hand-rolled queue is not debt. A design that starts simple, says it is starting simple, and names the condition that forces the next step is complete. Silence is the defect, not simplicity. The scaling ladder is a sequence of triggers, and a rung not yet taken is only debt once its trigger has fired.
+**About simplicity.** A single node, a single store, a synchronous call, a monolith, or a hand-rolled queue is not debt. A design that starts simple, says it is starting simple, and names the condition that forces the next step is complete. Silence is the defect, not simplicity. The scaling substrate in [HEURISTICS.md](HEURISTICS.md#scaling-substrate) is a sequence of triggers, and a rung not yet taken is only debt once its trigger has fired.
 
 **About distributed mechanisms.** Absence of Byzantine tolerance is not debt outside an adversarial or untrusted-tenant deployment. Eventual consistency is not debt; an unstated conflict-resolution rule is. Whole-entity last-write-wins is a legitimate choice unless the design also claims no acknowledged write is lost. A single leader is a simplification, not a smell. Manual failover can be correct. Never assert that one storage engine amplifies writes more than another — flag a missing amplification story instead.
 
