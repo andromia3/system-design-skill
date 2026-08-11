@@ -89,11 +89,11 @@ ul.plain li{margin:.3rem 0}
 .interface-purpose{margin:.1rem 0 .5rem;color:var(--muted)}
 .interface-transport{margin:.15rem 0 .6rem;overflow-wrap:anywhere}
 .interface-contract-summary{margin:.15rem 0 .6rem;color:var(--muted)}
-.interface-groups{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.75rem}
-.interface-group{border-top:1px solid var(--hair);padding-top:.4rem;min-width:0}
-.interface-group h4{font:600 .72rem var(--sans);letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin:0 0 .25rem}
-.interface-group p{margin:.16rem 0;overflow-wrap:anywhere}
-.interface-group b{font-weight:600;color:var(--muted)}
+.detail-groups{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.75rem}
+.detail-group{border-top:1px solid var(--hair);padding-top:.4rem;min-width:0}
+.detail-group h4{font:600 .72rem var(--sans);letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin:0 0 .25rem}
+.detail-group p{margin:.16rem 0;overflow-wrap:anywhere}
+.detail-group b{font-weight:600;color:var(--muted)}
 
 /* ============ architecture view ============ */
 .thesis{margin:.2rem 0 .7rem;font-size:1.02rem}
@@ -190,7 +190,7 @@ kbd{font:600 .72rem var(--mono);border:1px solid var(--hair);border-bottom-width
   .arch-shell{grid-template-columns:minmax(0,1fr) 220px;height:70vh}
   .flow-sidebar{padding:.6rem;font-size:.82rem}
   .canvas-help{display:none}
-  .interface-groups{grid-template-columns:1fr}
+  .detail-groups{grid-template-columns:1fr}
 }
 
 /* ============ compare ============ */
@@ -404,10 +404,10 @@ function renderOverview(sec){
     ${interfaces.length?`<div class="card"><h2>System interfaces</h2><div class="interface-list">
       ${interfaces.map(item=>`<article class="interface-contract"><div class="interface-head"><h3>${esc(item.name)}</h3><span class="interface-style" data-interface-field="style">${esc(item.style||"—")}</span></div>
         <p class="interface-purpose">${esc(item.purpose||"—")}</p><p class="interface-transport mono">${esc(item.transport||"—")}</p>${item.contract?`<p class="interface-contract-summary"><b>Contract:</b> ${esc(item.contract)}</p>`:""}
-        <div class="interface-groups">
-          <section class="interface-group"><h4>Deadline / retry</h4><p><b>Deadline:</b> <span data-interface-field="deadline">${esc(item.deadline||"—")}</span></p><p><b>Retryability:</b> <span data-interface-field="retryability">${esc(item.retryability||"—")}</span></p></section>
-          <section class="interface-group"><h4>Trust / pressure</h4><p><b>Trust boundary:</b> <span data-interface-field="trustBoundary">${esc(item.trustBoundary||"—")}</span></p><p><b>Backpressure:</b> <span data-interface-field="backpressure">${esc(item.backpressure||"—")}</span></p></section>
-          <section class="interface-group"><h4>Failure / compatibility</h4><p><b>Failure result:</b> <span data-interface-field="failureResult">${esc(item.failureResult||"—")}</span></p><p><b>Compatibility:</b> <span data-interface-field="compatibility">${esc(item.compatibility||"—")}</span></p></section>
+        <div class="detail-groups">
+          <section class="detail-group"><h4>Deadline / retry</h4><p><b>Deadline:</b> <span data-interface-field="deadline">${esc(item.deadline||"—")}</span></p><p><b>Retryability:</b> <span data-interface-field="retryability">${esc(item.retryability||"—")}</span></p></section>
+          <section class="detail-group"><h4>Trust / pressure</h4><p><b>Trust boundary:</b> <span data-interface-field="trustBoundary">${esc(item.trustBoundary||"—")}</span></p><p><b>Backpressure:</b> <span data-interface-field="backpressure">${esc(item.backpressure||"—")}</span></p></section>
+          <section class="detail-group"><h4>Failure / compatibility</h4><p><b>Failure result:</b> <span data-interface-field="failureResult">${esc(item.failureResult||"—")}</span></p><p><b>Compatibility:</b> <span data-interface-field="compatibility">${esc(item.compatibility||"—")}</span></p></section>
         </div><p class="hint"><b>Consistency:</b> ${esc(item.consistency||"—")} · <b>Idempotency:</b> ${esc(item.idempotency||"—")}</p>
       </article>`).join("")}
     </div></div>`:""}
@@ -1491,24 +1491,27 @@ function bySeverityThenConfidence(x,y){
   return severityRank(x)-severityRank(y) || confidenceRank(x)-confidenceRank(y) || byText(x.id||"", y.id||"");
 }
 function severityChip(f){
-  const key = SEV_ORDER[f.severity]!=null ? f.severity : "";
-  return key ? `<span class="dc sev sev-${esc(key)}" title="${esc(SEV_ACTION[key])}">${esc(SEV_LABEL[key])}</span>` : "";
+  if(!f.severity) return "";
+  // A level outside the four still gets a chip. Rendering nothing would hide a
+  // finding's severity precisely when the artifact is malformed enough to need it.
+  const known = SEV_ORDER[f.severity]!=null;
+  return `<span class="dc sev${known?` sev-${esc(f.severity)}`:""}" title="${esc(known?SEV_ACTION[f.severity]:"severity outside the four levels")}">${esc(known?SEV_LABEL[f.severity]:f.severity)}</span>`;
 }
 function findingBody(f){
   const evidence=f.evidence||[], v=f.verification||{}, lenses=v.lenses||[];
   const gates=Object.entries(v.gates||{});
   return `<div class="fbody">
     ${f.whyItMatters?`<p class="fwhy">${esc(f.whyItMatters)}</p>`:""}
-    <div class="interface-groups">
-      <section class="interface-group"><h4>Evidence</h4>
+    <div class="detail-groups">
+      <section class="detail-group"><h4>Evidence</h4>
         ${evidence.length?evidence.map(e=>`<p class="fev">${esc(e.text||"")}${e.source?`<br><span class="mono" style="color:var(--faint)">${esc(e.source)}</span>`:""}</p>`).join(""):`<p class="fev">—</p>`}
       </section>
-      <section class="interface-group"><h4>Remedy</h4>
+      <section class="detail-group"><h4>Remedy</h4>
         <p class="fev"><b>${esc(f.remedy?.action||"—")}</b> — ${esc(f.remedy?.text||"—")}</p>
         <p class="fev"><b>Effort:</b> ${esc(f.effort||"—")}${f.reversibility?` · ${esc(f.reversibility)}`:""}</p>
         ${f.blastRadius?`<p class="fev"><b>Blast radius:</b> ${esc(f.blastRadius)}</p>`:""}
       </section>
-      <section class="interface-group"><h4>Verification</h4>
+      <section class="detail-group"><h4>Verification</h4>
         ${gates.length?`<p class="fev"><b>Gates:</b> ${gates.map(([g,r])=>`${esc(g)} ${esc(r)}`).join(" · ")}</p>`:""}
         ${lenses.map(l=>`<p class="fev"><b>${esc(l.lens)}:</b> ${l.refuted?"refuted":"survived"}${l.objection?` — ${esc(l.objection)}`:""}</p>`).join("")}
         <p class="fev"><b>Confidence:</b> ${esc(f.confidence||"—")}${(v.tools||[]).length?` · checked with ${esc(v.tools.join(", "))}`:""}</p>
@@ -1516,6 +1519,7 @@ function findingBody(f){
     </div>
     ${f.disconfirming?`<p class="fnote"><b>Strongest objection it survived:</b> ${esc(f.disconfirming)}</p>`:""}
     ${f.justification?`<p class="fnote"><b>Accepted:</b> ${esc(f.justification)}${f.acceptedUntil?` — until ${esc(f.acceptedUntil)}`:""}</p>`:""}
+    <p class="fnote"><a href="#debt/f-${esc(f.id)}">Link to this finding</a></p>
   </div>`;
 }
 function findingRow(f){
@@ -1523,8 +1527,10 @@ function findingRow(f){
   const meta=[f.remedy?.action, comps.join(" · "),
               resolved.length?`resolved by ${resolved.map(id=>archName(id)).join(", ")}`:"unresolved by every candidate",
               f.baselineState].filter(Boolean).join(" · ");
-  // Every token a reader would search for lives in the collapsed row.
-  return `<details class="finding" id="f-${esc(f.id)}" data-sev="${esc(f.severity||"")}" data-comp="${esc(comps.join(" "))}">
+  // Every token a reader would search for lives in the collapsed row. Filtering
+  // reads the finding object, not attributes, so no value has to survive a
+  // round trip through a delimiter it might contain.
+  return `<details class="finding" id="f-${esc(f.id)}">
     <summary>${severityChip(f)} <span class="fname">${esc(f.title||f.id)}</span><span class="fmeta mono">${esc(meta)}</span></summary>
     ${findingBody(f)}
   </details>`;
@@ -1535,12 +1541,27 @@ function debtAside(title, list){
     ${list.sort(bySeverityThenConfidence).map(findingRow).join("")}</details>`;
 }
 function renderDebt(sec){
-  const all=(D.debt?.findings)||[];
+  // Two findings that collide on id are the same finding; the merge protocol
+  // says so, and rendering both would put a duplicate id in the document. The
+  // first wins, so a deep link opens the row a reader would have scrolled to.
+  const seen=new Map();
+  for (const f of (D.debt?.findings)||[]) if(!seen.has(f.id)) seen.set(f.id,f);
+  const all=[...seen.values()];
   const live=all.filter(f=>f.status!=="accepted"&&f.baselineState!=="absent"&&f.severity);
   const notes=all.filter(f=>!f.severity&&f.status!=="accepted"&&f.baselineState!=="absent");
   const accepted=all.filter(f=>f.status==="accepted");
   const gone=all.filter(f=>f.baselineState==="absent"&&f.status!=="accepted");
-  const groups=DEBT_CATEGORIES.map(([key,label])=>[key,label,live.filter(f=>f.category===key).sort(bySeverityThenConfidence)]).filter(g=>g[2].length);
+  // Group from the findings and order by the enum, rather than iterating the
+  // enum: a category the taxonomy does not know still has to reach the page,
+  // or a malformed artifact loses a finding silently and over-counts the rest.
+  const labels=Object.fromEntries(DEBT_CATEGORIES);
+  const buckets=new Map(DEBT_CATEGORIES.map(([key])=>[key,[]]));
+  for (const f of live){
+    if(!buckets.has(f.category)) buckets.set(f.category,[]);
+    buckets.get(f.category).push(f);
+  }
+  const groups=[...buckets].filter(([,items])=>items.length)
+    .map(([key,items])=>[key, labels[key]||key, items.sort(bySeverityThenConfidence)]);
   const severities=[...SEV_KEYS].filter(k=>live.some(f=>f.severity===k));
   const components=[...new Set(live.flatMap(f=>f.components||[]))].sort(byText);
   const checked=D.debt?.checked||[], unverified=D.debt?.unverified||[];
@@ -1565,16 +1586,21 @@ function renderDebt(sec){
   </div>`;
 
   const status=sec.querySelector(".debt-status");
-  const rows=[...sec.querySelectorAll("details.finding")];
+  // Pair each element with the finding that produced it, in render order, and
+  // scope to the groups: the asides hold findings the chips do not describe, so
+  // filtering them would hide rows nothing can bring back and count rows the
+  // header never promised.
+  const ordered=groups.flatMap(([,,items])=>items);
+  const rows=[...sec.querySelectorAll(".debt-group details.finding")].map((el,i)=>({el,finding:ordered[i]}));
   function applyFilter(){
     const on={sev:new Set(),comp:new Set()};
     sec.querySelectorAll('.debt-toolbar button[aria-pressed="true"]').forEach(b=>on[b.dataset.kind].add(b.dataset.value));
     let shown=0;
-    for (const row of rows){
-      const okSev = !on.sev.size || on.sev.has(row.dataset.sev);
-      const okComp = !on.comp.size || row.dataset.comp.split(" ").some(c=>on.comp.has(c));
-      row.hidden = !(okSev&&okComp);
-      if(!row.hidden) shown++;
+    for (const {el,finding} of rows){
+      const okSev = !on.sev.size || on.sev.has(finding.severity);
+      const okComp = !on.comp.size || (finding.components||[]).some(c=>on.comp.has(c));
+      el.hidden = !(okSev&&okComp);
+      if(!el.hidden) shown++;
     }
     for (const group of sec.querySelectorAll(".debt-group")){
       const items=[...group.querySelectorAll("details.finding")];
@@ -1620,15 +1646,16 @@ show(cur());
 const inspectedComponent=new URLSearchParams(location.search).get("inspect");
 if(inspectedComponent) sections[cur()]?._api?.selectComponent(inspectedComponent);
 function step(dir){
-  const id=cur(); const i=archIds.indexOf(id);
-  const next = i===-1 ? (dir>0?archIds[0]:archIds[archIds.length-1]) : archIds[(i+dir+archIds.length)%archIds.length];
-  if(next) location.hash="#"+next;
+  const i = archIds.indexOf(cur());
+  // The arrows cycle architectures, so they do nothing on a tab that is not one.
+  // Teleporting into the carousel from the overview, the comparison, the debt
+  // panel, or the tab strip itself steals the key from whatever the reader was
+  // actually moving between.
+  if (i===-1) return;
+  location.hash = "#" + archIds[(i+dir+archIds.length)%archIds.length];
 }
 document.addEventListener("keydown", e=>{
   if (e.target.matches("input,textarea,[contenteditable]")) return;
-  // Arrowing between filter chips must not fling the reader into the
-  // architecture carousel; a <button> does not match the guard above.
-  if (e.target.closest("#sec-debt")) return;
   if (e.key==="ArrowLeft") step(-1);
   else if (e.key==="ArrowRight") step(1);
   else if (e.key==="Escape"){ const s=sections[cur()]; s?._api?.clear(); }

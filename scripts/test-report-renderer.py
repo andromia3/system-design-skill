@@ -182,34 +182,44 @@ def assert_debt_findings(dom: str, design: dict) -> None:
     assert rendered.count('<details class="finding"') == len(findings), (
         "rendered finding count does not match the design"
     )
-    for finding in findings:
-        assert f'id="f-{finding["id"]}"' in rendered, (
-            f"finding {finding['id']!r} is in the design but not rendered"
+    rows = {
+        html.unescape(m.group(1)): m.group(2)
+        for m in re.finditer(
+            r'<details class="finding" id="f-([^"]+)">(.*?)</summary>', rendered, re.S
         )
-        # The collapsed row has to carry what a reader would search for, or
-        # find-in-page reaches nothing until every row is open.
-        for key in ("title", "severity"):
-            value = finding.get(key)
-            if isinstance(value, str) and value.strip():
-                assert html.escape(value, quote=False) in rendered or value in rendered, (
-                    f"finding {finding['id']!r} {key} is not rendered"
-                )
-        for component in finding.get("components", []):
-            assert component in rendered, (
-                f"finding {finding['id']!r} does not name component {component!r}"
-            )
-    # Severity is looked up from two axes; a chip that disagrees with them means
-    # the renderer invented a verdict the artifact does not support.
+    }
     lookup = {
         ("breaking", "on-path"): "blocking", ("breaking", "off-path"): "high",
         ("friction", "on-path"): "medium", ("friction", "off-path"): "low",
     }
+    chip = re.compile(r'class="dc sev[^"]*"[^>]*>([^<]+)</span>')
     for finding in findings:
+        row = rows.get(finding["id"])
+        assert row is not None, f"finding {finding['id']!r} is in the design but not rendered"
+        # The collapsed row is the entire reading surface until someone opens it,
+        # so anything a reader would search or filter on has to be visible there —
+        # not merely present in the section, and not hidden in an attribute.
+        for value in [finding.get("title")] + list(finding.get("components", [])):
+            if isinstance(value, str) and value.strip():
+                assert html.escape(value, quote=False) in row, (
+                    f"finding {finding['id']!r} does not show {value!r} until it is opened"
+                )
+        severity = finding.get("severity")
+        if not severity:
+            continue
+        shown = chip.search(row)
+        assert shown, f"finding {finding['id']!r} renders no severity chip"
+        assert shown.group(1).lower() == severity.lower(), (
+            f"finding {finding['id']!r} chip reads {shown.group(1)!r}, severity is {severity!r}"
+        )
+        # Severity has one source. A chip that disagrees with the two axes means
+        # the renderer invented a verdict the artifact does not support. A level
+        # outside the four is a malformed artifact, not a derivation to check —
+        # it still has to render, which the chip assertion above covers.
         pair = (finding.get("consequence"), finding.get("exposure"))
-        if pair in lookup:
-            assert finding["severity"] == lookup[pair], (
-                f"finding {finding['id']!r} severity {finding['severity']!r} "
-                f"does not follow from {pair}"
+        if pair in lookup and severity in lookup.values():
+            assert severity == lookup[pair], (
+                f"finding {finding['id']!r} severity {severity!r} does not follow from {pair}"
             )
     for category in {f.get("category") for f in findings if f.get("severity")}:
         assert f'data-cat="{category}"' in rendered, (
@@ -218,6 +228,92 @@ def assert_debt_findings(dom: str, design: dict) -> None:
     assert 'role="group" aria-label="Filter findings"' in rendered, "missing labelled filter group"
     assert 'class="debt-status" role="status"' in rendered, "filter count is not a live region"
     assert "undefined" not in rendered
+
+
+def click_and_dump(report_path: Path, selector: str) -> str:
+    """Dump the DOM after one click, since --dump-dom alone only shows first paint."""
+    driven = report_path.with_name("driven.html")
+    driven.write_text(report_path.read_text().replace(
+        "</body>",
+        '<script>addEventListener("load",()=>setTimeout(()=>'
+        f'document.querySelector({selector!r}).click(),50))</script></body>',
+    ))
+    return run_chrome(driven, "debt")
+
+
+def assert_debt_survives_a_malformed_register(design_path: Path) -> None:
+    """Every value in a finding is written by a model, so none of them can be trusted.
+
+    A category outside the taxonomy and a severity outside the four levels both
+    have to reach the page. Dropping either loses a finding silently while the
+    header keeps counting it, which is the one failure a reader cannot detect.
+    """
+    with tempfile.TemporaryDirectory(prefix="system-design-debt-rough-") as temp_dir:
+        temp = Path(temp_dir)
+        rough_path, report_path = temp / "rough.json", temp / "report.html"
+        fixture = json.loads(design_path.read_text())
+        fixture["title"] = "Malformed debt register"
+        fixture["mode"] = "repo"
+        # A component id carrying the character the markup would delimit on.
+        spaced = "orders db"
+
+        axes = {"blocking": ("breaking", "on-path"), "high": ("breaking", "off-path"),
+                "medium": ("friction", "on-path"), "low": ("friction", "off-path")}
+
+        def finding(key, category, severity, components):
+            # Derive the axes from the severity so the fixture is well formed
+            # everywhere except where this test breaks it on purpose.
+            consequence, exposure = axes.get(severity, ("breaking", "on-path"))
+            return {
+                "id": f"dbt-{key}--x", "subject": "repo", "category": category,
+                "pattern": key, "title": f"TITLE_{key.upper()}", "components": components,
+                "consequence": consequence, "exposure": exposure, "severity": severity,
+                "confidence": "high", "evidence": [], "whyItMatters": "w",
+                "remedy": {"action": "cut", "text": "r"}, "effort": "S",
+                "resolvedBy": [], "disconfirming": "d",
+                "verification": {"gates": {}, "lenses": [], "tools": [], "survived": 0},
+                "status": "open", "firstSeen": "2026-08-11", "baselineState": "new",
+            }
+
+        fixture["debt"] = {"checked": [], "findings": [
+            finding("known", "data-ownership", "blocking", ["svc-a"]),
+            finding("rogue", "security", "blocking", ["svc-a"]),
+            finding("odd", "coupling", "critical", ["svc-a"]),
+            finding("spaced", "coupling", "medium", [spaced]),
+            dict(finding("kept", "coupling", "low", ["svc-a"]),
+                 status="accepted", justification="j"),
+        ]}
+        rough_path.write_text(json.dumps(fixture))
+        design = render_report(rough_path, report_path)
+        dom = run_chrome(report_path, "debt")
+        rendered = debt_section(dom)
+        # Every finding reaches the page, whatever the taxonomy says about it.
+        assert_debt_findings(dom, design)
+        assert 'data-cat="security"' in rendered, "a category outside the seven was dropped"
+        assert ">critical<" in rendered, "a severity outside the four rendered no chip"
+        live = [f for f in fixture["debt"]["findings"] if f["status"] != "accepted"]
+        assert f"{len(live)} findings" in rendered, (
+            "the header count disagrees with the findings actually rendered"
+        )
+        # Filtering a component whose id contains the markup's own delimiter must
+        # show that finding, not hide it.
+        filtered = click_and_dump(report_path, f'button[data-value="{spaced}"]')
+        panel = debt_section(filtered)
+        assert "1 of 4 findings shown" in panel, (
+            f"filtering by {spaced!r} did not select exactly its finding"
+        )
+        assert "TITLE_SPACED" in panel
+        # The count cannot exceed the total, which it does when the asides are
+        # swept into the filter set.
+        shown = re.search(r"(\d+) of (\d+) findings shown", panel)
+        assert int(shown.group(1)) <= int(shown.group(2)), (
+            f"filter reported {shown.group(0)!r}, which is not possible"
+        )
+        # An aside is not described by the chips, so a filter must leave it alone.
+        assert "Accepted (1)" in panel, "a filter emptied a section the chips do not describe"
+        assert re.search(r'class="debt-count">\(1 of \d+\)', panel), (
+            "group counts do not relabel while a filter is applied"
+        )
 
 
 def assert_debt_tab_renders(design_path: Path) -> None:
@@ -262,6 +358,11 @@ def assert_debt_tab_renders(design_path: Path) -> None:
             assert sentinel in rendered, f"debt field was dropped: {sentinel}"
         assert "<unsafe>" not in rendered
         assert "&lt;unsafe&gt; &amp; quoted" in rendered
+        # Printing must open every disclosure and every tab, and must not ship
+        # whatever the reader happened to have filtered.
+        for rule in ("@media print", "::details-content",
+                     "section[hidden]", ".finding[hidden]"):
+            assert rule in dom, f"print stylesheet is missing {rule!r}"
         # The route must select the tab, not merely build the section.
         assert re.search(r'<button[^>]*id="tab-debt"[^>]*aria-selected="true"', dom), (
             "the #debt route did not select the debt tab"
@@ -404,6 +505,11 @@ def assert_legacy_interfaces_render_as_dashes(design_path: Path) -> None:
             )
         assert "<unsafe>" not in rendered
         assert "&lt;unsafe&gt; &amp; quoted" in rendered
+        # Printing must open every disclosure and every tab, and must not ship
+        # whatever the reader happened to have filtered.
+        for rule in ("@media print", "::details-content",
+                     "section[hidden]", ".finding[hidden]"):
+            assert rule in dom, f"print stylesheet is missing {rule!r}"
         assert "undefined" not in rendered
 
 
@@ -441,6 +547,7 @@ def main() -> None:
     title = assert_report_geometry(args.design, args.route)
     assert_legacy_interfaces_render_as_dashes(args.design)
     assert_debt_tab_renders(args.design)
+    assert_debt_survives_a_malformed_register(args.design)
     print(f"PASS: {title} architecture {args.route}")
 
 

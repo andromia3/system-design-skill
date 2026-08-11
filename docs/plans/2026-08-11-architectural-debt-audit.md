@@ -291,3 +291,41 @@ anti-overengineering gates would reject.
 Standalone audit mode · greenfield audits · candidate generation from findings · ADR write-back ·
 any numeric score, debt index, or hours/dollars estimate · code-level smells · a real repo-mode
 example (separate work).
+
+---
+
+## What changed during implementation
+
+Four of this plan's decisions were reversed while building. They are recorded here
+rather than edited away, because the reasoning that produced them was wrong in ways
+worth being able to find again.
+
+**Grouping is by category, not component.** The plan said component; `AUDIT.md` said
+category. `components` is an array, so grouping by it would either duplicate a finding
+across groups or force an arbitrary primary. Category also keeps the group count stable
+between runs. Components drive the filter chips instead, which is where the
+"act on one component" need is actually served.
+
+**Native `<details>`, not a button with `aria-expanded`.** The plan chose the button
+partly because closed `<details>` was said to be invisible to find-in-page. That is
+backwards: find-in-page reveal is in the HTML Standard and shipped in all three engines,
+while `aria-expanded` plus `display:none` is invisible to it permanently. The button
+choice survived on a different ground — screen-reader exposure of complex content inside
+`<summary>` — which the implementation avoids by putting the heading on the group rather
+than in the summary. Native `<details>` then costs no toggle script, no state to keep in
+sync, and no focus to repair, and it is what makes the print stylesheet able to open
+every row.
+
+**Findings are always collapsed.** The plan said render expanded below about five
+findings. The shipped behaviour is uniform, and the test asserts it: a panel whose shape
+changes with its own contents is harder to describe than it is worth.
+
+**Focus is not moved on filter change.** The plan called this "the single most likely
+accessibility bug in this feature" and then specified `tabindex="-1"` and `aria-live` on
+the same element, which produces the duplicate announcement it was trying to avoid. The
+stated reason for moving focus only holds if the list is rebuilt; filtering hides rows
+that already exist, so focus never moves and there is nothing to repair.
+
+The print CSS in Phase 3 was also wrong as written — `@media (print)` parenthesises a
+media type as if it were a feature, so the block never applies. The shipped stylesheet
+uses `@media print`.

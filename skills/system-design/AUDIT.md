@@ -50,6 +50,8 @@ Stages pass conclusions, never arguments. A stage that reads the previous stage'
 | 6 | **Merge** | always | the prior run joined in, baseline states set |
 | 7 | **Record** | always | the `debt` object, including what could not be established |
 
+Only stages 1 to 3 carry the argument. Stage 0 is reading the repository, stage 4 is a table lookup, and 5 to 7 are authorship and bookkeeping. They are listed separately because each has a different input and a different output contract, and an agent executing them needs the boundary — not because eight mechanisms were separately justified. If a run has budget for one thing, it is generating findings per category and then trying to destroy them.
+
 **Provisional severity gates depth, verified severity is what ships.** The consequence and exposure a finder claims give a provisional severity by the same lookup the verified one uses, and that provisional value decides how many lenses stage 3 spends. Stage 4 then recomputes severity from what survived. A claim that asserts `blocking` earns both lenses and may still end up `low`.
 
 ### Kill rules
@@ -60,10 +62,12 @@ The lenses are not interchangeable and their verdicts do not carry the same weig
 |---|---|---|
 | **Real** refuted | Delete | The claim is untrue; there is nothing to weigh |
 | **Uncovered** refuted | Delete | A recorded decision makes this a decision, not debt |
-| **Unstated** refuted | Demote, and the objection becomes the finding's disconfirming line | Whether a trade-off is adequately stated is a judgement, and a wrong deletion is invisible |
-| **Live** refuted | Demote to `low`, never below | Change history is a proxy, and an untouched component on the primary flow can still break |
+| **Unstated** refuted | Drop `confidence` one level, and the objection becomes the finding's disconfirming line | Whether a trade-off is adequately stated is a judgement, and a wrong deletion is invisible |
+| **Live** refuted | Set `exposure` to `off-path` | Change history is a proxy, so this lowers the finding rather than removing it — and an untouched component on the primary flow can still break |
 
-A deletion is silent and a demotion is visible. Reserve deletion for the two verdicts that make the finding factually wrong, and let the reader adjudicate the rest.
+A deletion is silent and a survival is visible. Reserve deletion for the two verdicts that make the finding factually wrong, and let the reader adjudicate the rest.
+
+Neither survivable verdict writes `severity` directly. `severity` has exactly one source — the lookup in [Severity](#severity) — so a lens that lowers a finding does it by moving an **input**: *Live* moves `exposure`, and *Unstated* moves `confidence`, which is a separate axis the lookup never reads. Stage 4 then re-derives severity from whatever the lenses left, and a reader who disagrees is arguing with an axis rather than with a verdict that appeared from nowhere.
 
 ### Tools
 

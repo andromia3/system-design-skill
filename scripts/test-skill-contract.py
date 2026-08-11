@@ -144,6 +144,14 @@ def main() -> None:
             check(f"`{level}`" in audit, f"AUDIT.md does not define severity {level}")
         check("`note` is not a severity" in audit,
               "AUDIT.md does not separate observations from severities")
+        # Severity has exactly one source. A lens that writes it directly makes
+        # the protocol non-deterministic, because stage 4 re-derives afterwards.
+        check("severity` has exactly one source" in audit,
+              "AUDIT.md does not state that severity has a single source")
+        kill_rules = audit.split("### Kill rules")[-1].split("###")[0]
+        for verdict in ("Demote to", "Demote to `low`", "set `severity`"):
+            check(verdict not in kill_rules,
+                  f"a kill rule writes severity directly instead of moving an input: {verdict!r}")
         for banned in ("debt score", "debt index", "remediation hours"):
             check(banned not in audit.lower(), f"AUDIT.md reintroduces a rejected measure: {banned}")
 

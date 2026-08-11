@@ -113,7 +113,7 @@ Before rendering, verify:
 - burst, skew, fan-out, hot keys, and partial failure are addressed;
 - security, privacy, abuse, retention, and deletion are addressed where relevant;
 - no critical deep dive has been deferred into a vague next step;
-- every finding cites evidence and clears the admission gate, and every `blocking` finding names by id the invariant or target it violates;
+- every finding cites evidence and passes all four debt tests, and every `blocking` finding names by id the invariant or target it violates;
 - `debt.checked` lists every category examined, and every check the run could not establish is recorded rather than dropped.
 
 ### 8. Audit the architecture for debt
