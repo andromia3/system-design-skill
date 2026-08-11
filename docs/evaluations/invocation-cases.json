@@ -70,5 +70,17 @@
     "prompt": "Fix this Redis TTL bug where the key expires immediately after SET and add a regression test.",
     "expectedInvocation": false,
     "expectedMode": "none"
+  },
+  {
+    "label": "audit-debt",
+    "prompt": "Audit this repository's architecture against the design we recorded a year ago, and tell me where it has drifted and what to clean up.",
+    "expectedInvocation": true,
+    "expectedMode": "repository"
+  },
+  {
+    "label": "code-cleanup",
+    "prompt": "Clean up the technical debt in this payment handler function and split it into smaller pieces.",
+    "expectedInvocation": false,
+    "expectedMode": "none"
   }
 ]

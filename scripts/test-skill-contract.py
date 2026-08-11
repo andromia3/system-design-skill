@@ -111,6 +111,49 @@ def main() -> None:
         and "no executable ddl" in skill.lower()
     )
     check(schema_language, "SKILL.md does not require intuitive non-executable database schemas")
+    audit_path = SKILL_DIR / "AUDIT.md"
+    check(audit_path.is_file(), "AUDIT.md does not exist")
+    if audit_path.is_file():
+        audit = audit_path.read_text()
+        check("](SKILL.md)" in "\n".join(audit.splitlines()[:5]),
+              "AUDIT.md does not backlink SKILL.md in its opening lines")
+        check("](AUDIT.md)" in skill, "SKILL.md does not link AUDIT.md at the audit step")
+        audit_provenance = ROOT / "docs" / "provenance" / "AUDIT.md"
+        check(audit_provenance.is_file(), "missing provenance pack: AUDIT.md")
+        if audit_provenance.is_file():
+            runtime = set(re.findall(r"(?m)^## (.+)$", audit))
+            recorded = set(re.findall(r"(?m)^## (.+)$", audit_provenance.read_text()))
+            # A subset, not equality: the runtime file carries a Contents block
+            # that has nothing to cite, and every other section must be covered.
+            check(recorded <= runtime,
+                  f"provenance/AUDIT.md has sections AUDIT.md does not: {sorted(recorded - runtime)}")
+            check(not (runtime - recorded - {"Contents"}),
+                  f"AUDIT.md sections with no provenance: {sorted(runtime - recorded - {'Contents'})}")
+        categories = re.findall(r"(?m)^### ([a-z-]+) — ", audit)
+        check(len(categories) == 7, f"AUDIT.md must define exactly seven categories, found {len(categories)}")
+        patterns = re.findall(r"(?m)^\| `([a-z-]+)` \|(.*)$", audit)
+        check(bool(patterns), "AUDIT.md defines no debt patterns")
+        for name, row in patterns:
+            # signature | remedy | not-when, the leading cells already consumed.
+            # Without a disqualifier a pattern gets matched against a system it
+            # does not fit, which is the failure the suppression list exists for.
+            cells = [cell.strip() for cell in row.split("|")]
+            check(len(cells) >= 3 and cells[2] not in ("", "—"),
+                  f"AUDIT.md pattern has no Not when: {name}")
+        for level in ("blocking", "high", "medium", "low"):
+            check(f"`{level}`" in audit, f"AUDIT.md does not define severity {level}")
+        check("`note` is not a severity" in audit,
+              "AUDIT.md does not separate observations from severities")
+        for banned in ("debt score", "debt index", "remediation hours"):
+            check(banned not in audit.lower(), f"AUDIT.md reintroduces a rejected measure: {banned}")
+
+    report = (SKILL_DIR / "HTML-REPORT.md").read_text()
+    check('"debt"' in report, "HTML-REPORT.md does not document the debt register")
+    check("#debt" in report, "HTML-REPORT.md does not list the debt tab")
+    for term in ("finding", "debt", "severity", "remedy", "evidence"):
+        check(term in report.split("## Vocabulary")[-1],
+              f"HTML-REPORT.md vocabulary omits {term!r}")
+
     completion_match = re.search(
         r"A design is complete only when:\n\n(.*?)(?=\n\nBefore rendering, verify:)",
         skill,

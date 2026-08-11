@@ -153,6 +153,141 @@ def assert_interface_contracts(dom: str, design: dict) -> None:
                 )
 
 
+def debt_section(dom: str) -> str:
+    """The debt panel's own markup, so a match cannot come from another tab.
+
+    Scanned rather than matched: each finding nests <section> elements for its
+    detail columns, so a non-greedy regex stops at the first one and silently
+    reports a truncated panel as a complete one.
+    """
+    opening = re.search(r'<section id="sec-debt"[^>]*>', dom)
+    assert opening, "debt section did not render"
+    rest, depth = dom[opening.end():], 1
+    for tag in re.finditer(r"</?section\b", rest):
+        depth += 1 if tag.group(0) == "<section" else -1
+        if depth == 0:
+            return rest[: tag.start()]
+    raise AssertionError("debt section is unbalanced")
+
+
+def assert_debt_findings(dom: str, design: dict) -> None:
+    """Assert against the design's own findings rather than one fixture's nouns."""
+    debt = design.get("debt")
+    if not debt:
+        assert "<section id=\"sec-debt\"" not in dom, "debt tab rendered for a design with no findings"
+        return
+    findings = debt.get("findings", [])
+    assert findings, "design declares a debt register with no findings"
+    rendered = debt_section(dom)
+    assert rendered.count('<details class="finding"') == len(findings), (
+        "rendered finding count does not match the design"
+    )
+    for finding in findings:
+        assert f'id="f-{finding["id"]}"' in rendered, (
+            f"finding {finding['id']!r} is in the design but not rendered"
+        )
+        # The collapsed row has to carry what a reader would search for, or
+        # find-in-page reaches nothing until every row is open.
+        for key in ("title", "severity"):
+            value = finding.get(key)
+            if isinstance(value, str) and value.strip():
+                assert html.escape(value, quote=False) in rendered or value in rendered, (
+                    f"finding {finding['id']!r} {key} is not rendered"
+                )
+        for component in finding.get("components", []):
+            assert component in rendered, (
+                f"finding {finding['id']!r} does not name component {component!r}"
+            )
+    # Severity is looked up from two axes; a chip that disagrees with them means
+    # the renderer invented a verdict the artifact does not support.
+    lookup = {
+        ("breaking", "on-path"): "blocking", ("breaking", "off-path"): "high",
+        ("friction", "on-path"): "medium", ("friction", "off-path"): "low",
+    }
+    for finding in findings:
+        pair = (finding.get("consequence"), finding.get("exposure"))
+        if pair in lookup:
+            assert finding["severity"] == lookup[pair], (
+                f"finding {finding['id']!r} severity {finding['severity']!r} "
+                f"does not follow from {pair}"
+            )
+    for category in {f.get("category") for f in findings if f.get("severity")}:
+        assert f'data-cat="{category}"' in rendered, (
+            f"findings are not grouped under category {category!r}"
+        )
+    assert 'role="group" aria-label="Filter findings"' in rendered, "missing labelled filter group"
+    assert 'class="debt-status" role="status"' in rendered, "filter count is not a live region"
+    assert "undefined" not in rendered
+
+
+def assert_debt_tab_renders(design_path: Path) -> None:
+    """The shipped example is greenfield, so derive a repo-mode fixture from it."""
+    with tempfile.TemporaryDirectory(prefix="system-design-debt-") as temp_dir:
+        temp = Path(temp_dir)
+        debt_path, report_path = temp / "debt.json", temp / "report.html"
+        fixture = json.loads(design_path.read_text())
+        fixture["title"] = "Repository debt fixture"
+        fixture["mode"] = "repo"
+        components = [c["id"] for c in fixture["architectures"][0]["components"]][:2]
+        fixture["debt"] = {
+            "scheme": "pattern+components/v1",
+            "checked": ["data-ownership"],
+            "unverified": [{"check": "UNVERIFIED_SENTINEL", "reason": "shallow clone"}],
+            "findings": [{
+                "id": "dbt-shared-persistence--" + "-".join(sorted(components)),
+                "identity": {"scheme": "pattern+components/v1",
+                             "pattern": "shared-persistence", "components": sorted(components)},
+                "subject": "repo", "category": "data-ownership",
+                "pattern": "shared-persistence",
+                "title": "TITLE_SENTINEL <unsafe> & quoted",
+                "components": components,
+                "consequence": "breaking", "exposure": "on-path",
+                "severity": "blocking", "confidence": "high",
+                "evidence": [{"text": "EVIDENCE_SENTINEL", "source": "src/a.py"}],
+                "whyItMatters": "WHY_SENTINEL",
+                "remedy": {"action": "consolidate", "text": "REMEDY_SENTINEL"},
+                "effort": "M", "resolvedBy": [], "disconfirming": "OBJECTION_SENTINEL",
+                "verification": {"gates": {"real": "pass"}, "lenses": [], "tools": [], "survived": 1},
+                "status": "open", "firstSeen": "2026-08-11", "baselineState": "new",
+            }],
+        }
+        debt_path.write_text(json.dumps(fixture))
+        design = render_report(debt_path, report_path)
+        dom = run_chrome(report_path, "debt")
+        assert rendered_title(dom) == fixture["title"]
+        assert_debt_findings(dom, design)
+        rendered = debt_section(dom)
+        for sentinel in ("EVIDENCE_SENTINEL", "WHY_SENTINEL", "REMEDY_SENTINEL",
+                         "OBJECTION_SENTINEL", "UNVERIFIED_SENTINEL"):
+            assert sentinel in rendered, f"debt field was dropped: {sentinel}"
+        assert "<unsafe>" not in rendered
+        assert "&lt;unsafe&gt; &amp; quoted" in rendered
+        # The route must select the tab, not merely build the section.
+        assert re.search(r'<button[^>]*id="tab-debt"[^>]*aria-selected="true"', dom), (
+            "the #debt route did not select the debt tab"
+        )
+        opened = re.search(r'<section id="sec-debt"([^>]*)>', dom)
+        assert opened and "hidden" not in opened.group(1), (
+            "the #debt route left the debt section hidden"
+        )
+        # Every row starts closed, or the panel opens as a wall of text.
+        assert not re.search(r'<details class="finding"[^>]*\sopen', dom), (
+            "a finding rendered already expanded"
+        )
+        # A deep link has to reach the finding instead of falling through to the
+        # overview, which is what the router did before it split on the slash.
+        deep = run_chrome(report_path, "debt/f-" + fixture["debt"]["findings"][0]["id"])
+        target = re.search(r'<details class="finding" id="f-[^"]*"([^>]*)>', deep)
+        assert target and "open" in target.group(1), "deep link did not open its finding"
+        assert re.search(r'id="tab-debt"[^>]*aria-selected="true"', deep), (
+            "deep link did not select the debt tab"
+        )
+        # Adding a tab must not disturb the canvases the other tabs still draw.
+        for name in ("component-overlaps", "route-collisions", "text-overflows",
+                     "fit-overflows", "label-occlusions"):
+            assert diagnostic_value(dom, name) == 0
+
+
 def inspector_body(dom: str, route: str) -> str:
     section = re.search(
         fr'<section id="sec-{re.escape(route)}"[^>]*>(.*?)</section>', dom, re.S
@@ -283,6 +418,7 @@ def assert_report_geometry(design_path: Path, route: str) -> str:
         assert_not_corrupted(dom, design)
         assert_v2_content(dom, design)
         assert_interface_contracts(dom, design)
+        assert_debt_findings(dom, design)
         assert diagnostic_value(dom, "component-overlaps") == 0
         assert diagnostic_value(dom, "route-collisions") == 0
         assert diagnostic_value(dom, "text-overflows") == 0
@@ -304,6 +440,7 @@ def main() -> None:
     args = parse_args()
     title = assert_report_geometry(args.design, args.route)
     assert_legacy_interfaces_render_as_dashes(args.design)
+    assert_debt_tab_renders(args.design)
     print(f"PASS: {title} architecture {args.route}")
 
 
