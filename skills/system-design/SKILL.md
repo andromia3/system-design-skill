@@ -1,6 +1,6 @@
 ---
 name: system-design
-description: Design or evolve a production system from repository evidence, measurable requirements, capacity math, protected invariants, and explicit trade-offs. Reads an existing codebase as the current architecture, closes the requirements it cannot recover on its own, then draws structurally distinct candidates and recommends one with a chained evidence argument. Produces an interactive HTML report, a structured design.json, and a durable DESIGN.md a later session can resume. Use for repository architecture work, greenfield systems, scaling and sharding plans, datastore or consistency choices, capacity and cost sizing, or recording a decision as an ADR. Answers directly when the numbers already settle the choice instead of manufacturing a document.
+description: Design or evolve a production system from repository evidence, measurable requirements, capacity math, protected invariants, and explicit trade-offs. Reads an existing codebase as the current architecture, closes the requirements it cannot recover on its own, then draws structurally distinct candidates and recommends one with a chained evidence argument. Produces an interactive HTML report, a structured design.json, and a durable DESIGN.md a later session can resume. In an existing repository it also audits the implementation against the intended architecture and records the debt it finds, each with a remedy and its evidence. Use for repository architecture work, greenfield systems, scaling and sharding plans, datastore or consistency choices, capacity and cost sizing, recording a decision as an ADR, or auditing a system that has drifted from its design. Answers directly when the numbers already settle the choice instead of manufacturing a document.
 license: MIT
 metadata:
   author: pinchen147
@@ -42,7 +42,7 @@ In repository mode, first classify every top-level directory as system code, fir
 
 Restricted to in-scope paths, read architecture docs, ADRs, domain vocabulary, config, and the hot paths from recent history—plus whatever carries state and effects in this system's shape: schemas, APIs, and queues in a networked service; entry points and lifecycle, state owners, write and flush paths, persisted key namespaces, on-disk formats, entity identity keys, and process or sandbox boundaries in a client, desktop, or embedded codebase. Stop when the flows and invariants below close. Code and schema outrank prose when they disagree—record the divergence under `requirements.conflicts`, and ask rather than picking a side silently when it changes an invariant.
 
-Settled ADRs are constraints, but an ADR that is a stub, superseded, duplicated, or pointing outside this repository is unavailable evidence rather than a constraint; list what you could not read. Name the documents that already own this subject—when one already decides part of the ask, say what it settles and aim the run at what it leaves open. Trace the user-facing flows end to end and inventory every component using the types in [HTML-REPORT.md](HTML-REPORT.md).
+Settled ADRs are constraints, but an ADR that is a stub, superseded, duplicated, or pointing outside this repository is unavailable evidence rather than a constraint; list what you could not read. These ADRs are also the reference model the audit at step 8 measures against, so record each one's status: a decision that is accepted and quietly violated is a different finding from one that was superseded and never removed. Name the documents that already own this subject—when one already decides part of the ask, say what it settles and aim the run at what it leaves open. Trace the user-facing flows end to end and inventory every component using the types in [HTML-REPORT.md](HTML-REPORT.md).
 
 In both modes, define:
 
@@ -112,9 +112,21 @@ Before rendering, verify:
 - the design survives its own clients: duplicate submits, reconnect storms, cold caches, and a dependency that slows instead of failing;
 - burst, skew, fan-out, hot keys, and partial failure are addressed;
 - security, privacy, abuse, retention, and deletion are addressed where relevant;
-- no critical deep dive has been deferred into a vague next step.
+- no critical deep dive has been deferred into a vague next step;
+- every finding cites evidence and clears the admission gate, and every `blocking` finding names by id the invariant or target it violates;
+- `debt.checked` lists every category examined, and every check the run could not establish is recorded rather than dropped.
 
-### 8. Write, render, and verify
+### 8. Audit the architecture for debt
+
+Repository mode only, and only now: a finding's exposure is measured against the candidate this run recommends, which did not exist until the previous step. Greenfield has no implemented architecture to compare against and skips this step entirely.
+
+Follow [AUDIT.md](AUDIT.md). The order of its stages is the substance, not the ceremony: collect the structural facts—graph, edge contracts, ADR statuses, change history—before forming any verdict; generate candidate findings one category at a time, without showing the finder the previous run's list; put every candidate through the mechanical gates; hand the survivors to a red team that sees the claim but never the argument behind it. A model is an unreliable detector of architectural problems and a reliable disprover of them, so nothing reaches the report until something has tried to destroy it.
+
+Where a subagent primitive exists, run one finder per category and one verifier per lens. Where it does not, run the same stages inline, restating the brief and discarding the previous stage's reasoning at each boundary. A single pass that finds and judges at once is the one shape that does not work.
+
+Write the result into `design.json` under `debt`, including what was checked and what could not be established. Findings may seed `risks` and `nextSteps`; they never generate a candidate, and they never become an ADR.
+
+### 9. Write, render, and verify
 
 Write `design.json` and regenerate `DESIGN.md` beside it, preserving any user-owned `## Notes` verbatim. Validate all ids and flow references.
 
@@ -132,10 +144,10 @@ The script opens the report itself once it is written, so there is no separate s
 
 If the skill directory is not known, find it rather than skipping the step: `ls ~/.claude/skills/system-design/scripts/render_report.py ~/.agents/skills/system-design/scripts/render_report.py 2>/dev/null` covers both standalone installs, and a plugin install lives under `~/.claude/plugins/cache/`. Never read [assets/report-template.html](assets/report-template.html) into context or rebuild the report by hand; see [HTML-REPORT.md](HTML-REPORT.md). The report must contain only its own title/date chrome—no prototype or harness wrapper.
 
-Then confirm the render survived. The *rendered page* must show the design's own `title` rather than the template's `System design report` placeholder—a mismatch means the JSON never parsed. The title is set at run time, so the static file still contains the placeholder in its `<title>` tag; grep the embedded `application/json` block instead, or check that no `__DESIGN_JSON__` remains. With a browser tool, load every architecture route and read the hidden `report-diagnostics` element: `data-component-overlaps`, `data-route-collisions`, `data-text-overflows`, and `data-fit-overflows` must all be `0`. Any non-zero value is a `design.json` defect—shorten names, move positions, re-render. Without a browser tool, say the report was rendered but not inspected rather than claiming interactions you cannot see.
+Then confirm the render survived. The *rendered page* must show the design's own `title` rather than the template's `System design report` placeholder—a mismatch means the JSON never parsed. The title is set at run time, so the static file still contains the placeholder in its `<title>` tag; grep the embedded `application/json` block instead, or check that no `__DESIGN_JSON__` remains. With a browser tool, load every architecture route and read the hidden `report-diagnostics` element: `data-component-overlaps`, `data-route-collisions`, `data-text-overflows`, `data-fit-overflows`, and `data-label-occlusions` must all be `0`. Any non-zero value is a `design.json` defect—shorten names, move positions, re-render. Without a browser tool, say the report was rendered but not inspected rather than claiming interactions you cannot see.
 
 Iterate through `design.json`, never by hand-editing rendered HTML.
 
-### 9. Record the decision
+### 10. Record the decision
 
 When the user chooses, set `status: decided`. In repository mode, offer an ADR under `docs/adr/` that records the accepted candidate, rejected candidates, evidence, and consequences. Name the owning documents from step 2 in its Context, mark any ADR it replaces as superseded, and link `DESIGN.md` from wherever the repo indexes its docs. Future runs must read it and not re-litigate it without new evidence.

@@ -7,6 +7,7 @@ The artifact and schema contract for [SKILL.md](SKILL.md): the component types u
 - [The three artifacts](#the-three-artifacts) · [Render mechanics](#render-mechanics)
 - [Schema rules](#schema-rules) — read before writing `design.json`
 - [design.json schema](#designjson-schema) · [Component types and icons](#component-types-and-icons)
+- [The debt register](#designjson-schema) — repo mode only; the protocol lives in [AUDIT.md](AUDIT.md)
 - [What the rendered report does](#what-the-rendered-report-does) · [DESIGN.md format](#designmd-format)
 - [ADR on decision](#adr-on-decision-repo-mode) · [Vocabulary](#vocabulary)
 
@@ -41,6 +42,7 @@ If no opener works—headless box, remote session—print the absolute path and 
 5. **Reasoning cites.** Every `comparison.recommendation.reasoning` line and every `tradeoffs` entry chains to an estimate row, a `dataModel` decision, or a named principle from [HEURISTICS.md](HEURISTICS.md). No "more scalable" without the number that says why it matters here, and no citing the style matrix as evidence — its rows are priors, not measurements.
 6. **Production contracts are first-class.** `domain.entities[].invariants`, `dataModel.entities`, `interfaces`, and two or three resolved `deepDives` are required in v2. When the design has structured persistence, `dataModel.schemas` gives an intuitive, non-executable view of every table or collection: essential fields, key roles, indexes, relationships, authority, and retention. Every queue/log states delivery and idempotency semantics; every store is identified as authoritative or derived in its `note` and carries the optional `state` contract described below. Every edge carries the optional `contract` described below. These fields are optional for backward compatibility, but mandatory in newly completed candidates. `requirements.priorities.top3` names exactly three ratings axes, is settled before any candidate is drawn, and every axis in it also appears in `comparison.axes`. Migration notes state how the change is undone; a migration that executes on hardware you do not control — shipped clients, embedded devices, on-prem installs — is one-way, and says how long the previous version keeps writing the old shape.
 7. **Candidates stay complete.** Do not collapse losing candidates into partial sketches. Every candidate carries all components, edges, flows, trade-offs, and ratings needed for a direct comparison. A composed candidate is added, never a replacement — its parents stay drawn.
+8. **A finding keeps its identity across runs.** `id` is `dbt-<pattern>--<sorted component ids>` and nothing else — no prose, no path, no line number, no position in an array, because each of those changes for reasons that have nothing to do with whether it is the same finding. Two findings that collide on pattern and components are the same finding and merge; never disambiguate with a counter. A re-run joins on `id` and every `aliases` entry, then sets `baselineState` — which is present on every finding or on none. See [AUDIT.md](AUDIT.md#identity-and-merge) for the merge order and what survives it.
 
 ## design.json schema
 
@@ -240,11 +242,70 @@ If no opener works—headless box, remote session—print the absolute path and 
     }
   },
 
+  "debt": {                              // repo mode only — omitted entirely in greenfield
+    "scheme": "pattern+components/v1",   // identity scheme; see AUDIT.md "Identity and merge"
+    "checked": ["boundaries", "data-ownership", "coupling", "dependency-contracts",
+                "failure-containment", "over-engineering", "obsolescence"],
+    "unverified": [                      // checks that wanted evidence the run could not reach
+      { "check": "change history before 2026-01", "reason": "shallow clone; nine months available" }
+    ],
+    "findings": [
+      {
+        "id": "dbt-shared-persistence--billing-svc-orders-db",  // pattern + sorted component ids; prose never contributes
+        "identity": { "scheme": "pattern+components/v1", "pattern": "shared-persistence",
+                      "components": ["billing-svc", "orders-db"] },
+        "aliases": [],                   // ids this finding carried under an earlier scheme
+        "subject": "repo",               // repo | design — where it was observed
+        "category": "data-ownership",    // one of AUDIT.md's seven; the grouping axis
+        "pattern": "shared-persistence", // the rule that fired
+        "affects": ["evolvability"],     // optional: other ratings axes it touches
+        "title": "Billing and fulfilment both write the orders table",  // one sentence, readable on one line
+        "components": ["billing-svc", "orders-db"],
+        "edges": [],                     // optional: for debt that lives in a relationship
+        "consequence": "breaking",       // breaking | friction — a severity input, stored so it can be disputed
+        "exposure": "on-path",           // on-path | off-path — the other input
+        "severity": "blocking",          // blocking | high | medium | low — looked up from the two above, never chosen
+        "confidence": "high",            // high | medium | low — shown beside severity, never folded into it
+        "evidence": [ { "text": "both map orders as authoritative",
+                        "source": "billing/models.py; fulfilment/schema.sql" } ],
+        "whyItMatters": "A column added for billing cannot ship until fulfilment has been read and re-tested.",
+        "remedy": { "action": "consolidate",   // cut | consolidate | extract | replace | isolate | document
+                    "text": "One owner writes orders; the other reads a view it does not migrate." },
+        "effort": "M",                   // XS | S | M | L | XL — ordinal only, never hours and never currency
+        "reversibility": "reversible",   // optional: reversible | one-way
+        "blastRadius": "every migration touching orders",       // optional
+        "resolvedBy": ["b"],             // architecture ids that remove it; [] when no candidate does
+        "disconfirming": "ADR-0004 records the shared table, but for reads only — writes were never decided.",
+        "verification": {                // what actually ran, so a reader can weigh the claim
+          "gates": { "real": "pass", "live": "pass" },
+          "lenses": [ { "lens": "uncovered", "refuted": false,
+                        "objection": "ADR-0004 covers reads, not writes" },
+                      { "lens": "unstated", "refuted": false, "objection": "no trade-off is recorded" } ],
+          "tools": ["repository", "change history"],
+          "survived": 2                  // refutation attempts survived, of those run
+        },
+        "status": "open",                // open | accepted | planned | superseded | resolved
+        "justification": null,           // required once status leaves "open"
+        "acceptedUntil": null,           // optional condition that reopens an accepted finding
+        "firstSeen": "2026-08-11",       // carried forward across runs, never regenerated
+        "baselineState": "new"           // new | unchanged | updated | absent — on every finding or on none
+      }
+    ]
+  },
+
   "risks": [ { "text": "presence fan-out dominates at 50M concurrent", "horizon": "at 10× DAU" } ],
   "nextSteps": ["prototype gateway heartbeat reaping"],
   "adr": null                            // path to the ADR once written (repo mode, on decision)
 }
 ```
+
+`debt` is the register, not a report section: it is the only place an accepted finding survives a
+re-run. `status`, `justification`, `acceptedUntil`, `firstSeen`, and `aliases` are carried forward
+verbatim; everything else is regenerated. `checked` names every category the audit ran, so a category
+that produced nothing reads as examined rather than skipped, and `unverified` records the checks that
+wanted evidence the run could not reach. A finding is `note`-shaped — an observation with no remedy —
+by carrying no `severity`, `consequence`, or `exposure`; severity belongs only to findings that assert
+something is wrong.
 
 `components[].state` is the auditable state-survival contract. `role` says whether the component is the authority whose acknowledgement creates the promise, or a rebuildable `derived` view. An authoritative component supplies `acknowledgement` (the exact durable event after which success may be exposed), `failureDomain` (the independent failure scope covered by that acknowledgement), `rpo` (maximum acceptable data loss or recovery-point age, with scope), `rto` (maximum acceptable recovery time, with scope), and `recovery` (the tested promotion/restore procedure). A derived component supplies `source` (the complete authoritative reconstruction input) and `cursor` (the durable position/checkpoint proving how far that source has been applied); `recovery` may describe rebuild or catch-up. Do not put `UNKNOWN` in authoritative lifecycle state: authoritative operations use `PENDING | RECONCILING | SUCCEEDED | FAILED | CANCELLED`; `UNKNOWN` is only the caller's observation after an ambiguous timeout.
 
@@ -283,19 +344,22 @@ A client-side architecture uses the same enum: `mobile` or `client` for the shel
 ## What the rendered report does
 
 - **Header** is the title and the date — nothing else, unless the user asks for more.
-- **Tabs**, hash-routed and reload-stable: `#overview` · `#current` (repo mode) · one per candidate (`#a` `#b` `#c` …) · `#compare`. ←/→ cycle architectures.
+- **Tabs**, hash-routed and reload-stable: `#overview` · `#current` (repo mode) · one per candidate (`#a` `#b` `#c` …) · `#compare` · `#debt` (repo mode, only when the design carries findings). ←/→ cycle architectures, and do nothing on the tabs that are not architectures.
 - **Overview**: problem, FR/NFR tables, the top-three characteristics, estimates with derivations, the data and consistency model, accepted conflicts, and the recommendation banner with its reasoning chain.
 - **Architecture tabs**: a flow-first white canvas with soft clusters and a permanent flow sidebar on the right. The complete board fits on load and tab switch. Scroll/trackpad pinch zooms toward the pointer; empty-canvas drag pans; `−`, `+`, `Fit`, and keyboard equivalents are visible. Semantic zoom automatically reveals technology subtitles and secondary edge labels as space permits.
 - **Components**: pale family fills, saturated family strokes, black centered text, and conventional outer silhouettes—phones, hexagonal services, cylinders, cache chips, queue capsules, workers, buckets, and books.
 - **Connections**: directional orthogonal routes with rounded bends, perimeter ports, arrowheads, and white-backed labels. Routes treat every component as an obstacle and never pass through one.
 - **Selection**: clicking a flow (or cycling with ↑/↓) traces numbered crimson steps while its notes stay in the permanent sidebar. Clicking a component opens a closable floating inspector over the canvas without replacing the flow list. Escape clears; diff badges appear in repository mode.
 - **Compare**: the ratings matrix (all candidates plus Architecture 0), pros/cons, migration row in repo mode, per-candidate diff chips, and the recommendation banner.
-- **Diagnostics**: a hidden `report-diagnostics` element carries `data-component-overlaps`, `data-route-collisions`, `data-text-overflows`, and `data-fit-overflows` for the current route. All four read `0` on a clean render.
+- **Debt**: findings grouped by category, ordered by severity then confidence, each a native disclosure whose collapsed row carries everything worth searching for — severity, title, components, remedy verb, and which candidates resolve it. Open findings never collapse as a group; accepted findings and ones no longer present stay on the page in their own collapsed sections, because a finding somebody waved off is more useful visible than deleted. Severity chips are bordered text, never colour alone. Filter chips narrow by severity and component without reordering anything.
+- **Diagnostics**: a hidden `report-diagnostics` element carries `data-component-overlaps`, `data-route-collisions`, `data-text-overflows`, `data-fit-overflows`, and `data-label-occlusions` for the current route. All five read `0` on a clean render.
 - Self-contained: no network requests, light mode only, Wikipedia-style type system (serif headings, standard sans body), keyboard-accessible, reduced-motion respected. Every component's `note` is required — it feeds the click-to-inspect panel.
 
 ## DESIGN.md format
 
-Frontmatter: `date`, `mode`, `status`, `decided` (when set). Sections, in order: Context → Requirements → Core entities and invariants → Data and consistency model → System interfaces → Estimates → Candidates → Comparison and recommendation → Critical deep dives → Operations and rollout → Risks and what breaks first → Measurements that could overturn the decision → Next steps → Notes (user-owned; preserved verbatim on regeneration; created empty).
+Frontmatter: `date`, `mode`, `status`, `decided` (when set). Sections, in order: Context → Architectural debt (repo mode only; omitted entirely in greenfield, since an empty heading claims a survey that never ran) → Requirements → Core entities and invariants → Data and consistency model → Database schemas → System interfaces → Estimates → Candidates → Comparison and recommendation → Critical deep dives → Operations and rollout → Risks and what breaks first → Measurements that could overturn the decision → Next steps → Notes (user-owned; preserved verbatim on regeneration; created empty).
+
+Debt sits beside Context because both describe the system that exists; everything after Requirements describes the one being proposed. Keep it away from Risks: a risk is a future failure with a horizon, a finding is a present defect with a cost, and a reader who has to separate them again has been given a worse document. Format it like Risks — one bullet per finding, severity in trailing parentheses — and group under `###` per category only when the volume earns it.
 
 ## ADR on decision (repo mode)
 
@@ -303,6 +367,6 @@ Offer once, when the user picks a winner: `docs/adr/NNNN-<slug>.md` with Title (
 
 ## Vocabulary
 
-**Use exactly:** architecture, candidate, component, flow, step, zone, edge, envelope, estimate, characteristic, trade-off, recommendation.
+**Use exactly:** architecture, candidate, component, flow, step, zone, edge, envelope, estimate, characteristic, trade-off, recommendation, finding, debt, severity, remedy, evidence.
 
-**Never substitute:** box, node, block (for component) · path, journey (for flow) · lane, tier, layer (for zone) · option, variant (for candidate — a variant is what fails the distinctness rule).
+**Never substitute:** box, node, block (for component) · path, journey (for flow) · lane, tier, layer (for zone) · option, variant (for candidate — a variant is what fails the distinctness rule) · issue, problem, violation (for finding — a violation names a rule that was broken, which is only one of the seven things a finding can be) · score, rating, grade (for severity — severity is looked up from two axes, and a number implies a precision nothing here has).

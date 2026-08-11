@@ -69,6 +69,8 @@ A deletion is silent and a demotion is visible. Reserve deletion for the two ver
 
 Use whatever verification a harness offers — repository search, documentation lookup, a verification tool — at your discretion, and record which ones actually ran. **The audit must complete when none of them exist.** A finding verified only against the repository is still a finding; it carries lower confidence and says so. Never let an absent tool become an absent finding, and never let its absence go unmentioned.
 
+Network lookup is confined to `obsolescence`, the one category a repository cannot answer for itself: whether a dependency is abandoned, whether a version is superseded, whether a technique has a known failure the repository has not met yet. Every other category is decided from the repository and its history. Send a package name, a version, or a technique name; never the design, the topology, or the code. Where the harness has no network, `obsolescence` findings carry low confidence and say which lookup was unavailable.
+
 ### Without a subagent
 
 The stages are the contract; delegating them is an optimisation. Where a subagent primitive exists, run stage 1 as one agent per category and stage 3 as one agent per lens, and merge. Where it does not, run the same stages inline as separate passes, restating the brief and discarding the prior stage's reasoning at each boundary. What must not happen is a single pass that finds and judges at once.
@@ -109,7 +111,7 @@ Each brief states its input, its output, and the framing it must be run under. T
 
 ## Categories and patterns
 
-Seven categories, closed. The category is the grouping axis; the pattern is the rule. Where a finding genuinely affects several characteristics, name one category and list the rest under `affects` using the ratings axes in [HTML-REPORT.md](HTML-REPORT.md#designjson-schema) — forcing a multi-quality problem into a single bucket loses the part that was not chosen, and loses it silently.
+Seven categories, closed. The category is the grouping axis, in the artifact and in the report; the pattern is the rule. Components are carried on every finding and drive filtering, not grouping — a finding names as many components as it spans, so grouping by component would either duplicate it or force an arbitrary choice of one. Where a finding genuinely affects several characteristics, name one category and list the rest under `affects` using the ratings axes in [HTML-REPORT.md](HTML-REPORT.md#designjson-schema) — forcing a multi-quality problem into a single bucket loses the part that was not chosen, and loses it silently.
 
 Every pattern carries a **Not when** clause. Without one a signature gets matched against a system it does not fit, and the audit spends its credibility on a design that was right.
 
