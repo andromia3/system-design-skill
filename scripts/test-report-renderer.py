@@ -292,8 +292,8 @@ def assert_debt_survives_a_malformed_register(design_path: Path) -> None:
         assert 'data-cat="security"' in rendered, "a category outside the seven was dropped"
         assert ">critical<" in rendered, "a severity outside the four rendered no chip"
         live = [f for f in fixture["debt"]["findings"] if f["status"] != "accepted"]
-        assert f"{len(live)} findings" in rendered, (
-            "the header count disagrees with the findings actually rendered"
+        assert f'role="status">{len(live)} findings' in rendered, (
+            "the live-region count disagrees with the findings actually rendered"
         )
         # Filtering a component whose id contains the markup's own delimiter must
         # show that finding, not hide it.

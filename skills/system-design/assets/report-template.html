@@ -1567,7 +1567,6 @@ function renderDebt(sec){
   const checked=D.debt?.checked||[], unverified=D.debt?.unverified||[];
 
   sec.innerHTML = `<div class="card"><h2>Architectural debt</h2>
-    <p class="fwhy">${live.length} finding${live.length===1?"":"s"} in the implemented architecture, ordered by severity within each category. Every one cites its evidence and survived an attempt to disprove it; the strongest surviving objection is recorded beside each.</p>
     <div class="debt-toolbar" role="group" aria-label="Filter findings">
       ${severities.length?`<span class="k">Severity</span>${severities.map(k=>`<button type="button" class="tag" aria-pressed="false" data-kind="sev" data-value="${esc(k)}">${esc(SEV_LABEL[k])}</button>`).join("")}`:""}
       ${components.length?`<span class="k">Component</span>${components.map(c=>`<button type="button" class="tag" aria-pressed="false" data-kind="comp" data-value="${esc(c)}">${esc(c)}</button>`).join("")}`:""}
@@ -1582,7 +1581,7 @@ function renderDebt(sec){
     ${debtAside("No longer present", gone)}
     ${checked.length?`<p class="hint">Categories examined: ${checked.map(esc).join(" · ")}.</p>`:""}
     ${unverified.length?`<div class="conflict" style="margin-top:.8rem"><span class="k">Could not be established</span><ul class="plain">${unverified.map(u=>`<li>• ${esc(u.check)}${u.reason?` — ${esc(u.reason)}`:""}</li>`).join("")}</ul></div>`:""}
-    <p class="hint">Findings that reappear are matched across runs; whether a re-run surfaces the same set is not something this process can promise.</p>
+    <p class="hint">This does not converge: a re-run surfaces a different set, and a finding that returns is matched to its record. Nothing here edits the code.</p>
   </div>`;
 
   const status=sec.querySelector(".debt-status");
