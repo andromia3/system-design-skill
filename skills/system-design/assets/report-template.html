@@ -210,7 +210,57 @@ kbd{font:600 .72rem var(--mono);border:1px solid var(--hair);border-bottom-width
 .dc.add{color:var(--f-external)} .dc.rem{color:#c9302c} .dc.mod{color:#9a6700}
 .mig{font:500 .78rem var(--mono);margin-top:.5rem;color:var(--muted)}
 
+/* ============ debt ============ */
+.debt-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem;margin-bottom:.7rem}
+.debt-toolbar .k{font:600 .72rem var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-right:.15rem}
+.debt-toolbar .k+.k{margin-left:.6rem}
+.debt-toolbar button.tag{cursor:pointer}
+.debt-toolbar button.tag[aria-pressed="true"]{border-color:var(--link);background:var(--link-bg);color:var(--link)}
+.debt-status{margin:0 0 1rem;color:var(--muted);font-size:.82rem}
+.debt-group[hidden],.finding[hidden]{display:none}
+.debt-count{color:var(--faint);font:500 .8rem var(--mono);margin-left:.4rem}
+.finding{border-bottom:1px solid #eaecf0}
+.finding:last-of-type{border-bottom:0}
+/* summary must stay display:block or the browser paints its own marker twice */
+.finding>summary{display:block;cursor:pointer;padding:.45rem .3rem;border-radius:2px}
+.finding>summary:hover{background:var(--surface)}
+/* display:block above hides the native marker in Blink 89+ and Firefox; Safari
+   and older Blink need the -webkit- selector or they paint a second triangle. */
+.finding>summary::-webkit-details-marker{display:none}
+/* The caret is not decoration: in Firefox with VoiceOver its direction is the
+   only channel that communicates expanded state, so it flips rather than spins. */
+.finding>summary::before{content:"▸";color:var(--faint);font-size:.7rem;margin-right:.45rem}
+.finding[open]>summary::before{content:"▾"}
+.fname{font:600 .92rem var(--sans)}
+.fmeta{display:block;color:var(--muted);font-size:.76rem;margin:.12rem 0 0 1.15rem;overflow-wrap:anywhere}
+/* Severity is a bordered text chip, never a fill: backgrounds are dropped when
+   printing, and colour alone would carry the meaning. Both fail otherwise. */
+.sev{border-color:currentColor;font-weight:600}
+.sev-blocking{color:#a02c2c} .sev-high{color:#c9302c}
+.sev-medium{color:#9a6700}   .sev-low{color:var(--f-external)}
+.fbody{padding:.1rem .3rem .8rem 1.15rem}
+.fwhy{margin:.15rem 0 .65rem}
+.fev{margin:.18rem 0;overflow-wrap:anywhere}
+.fnote{margin:.5rem 0 0;color:var(--muted);font-size:.8rem}
+.debt-aside{margin-top:1rem}
+.debt-aside>summary{cursor:pointer;font:600 .82rem var(--sans);color:var(--muted);padding:.3rem 0}
+
 #empty{max-width:520px;margin:14vh auto;text-align:center;color:var(--muted)}
+
+/* ============ print ============ */
+@media print{
+  /* Force every collapsed disclosure open. `@media print` is a media TYPE —
+     parenthesising it makes an unknown media FEATURE and the block never applies.
+     height:auto is required as well: content-visibility alone leaves a 0px box. */
+  details:not([open])::details-content{content-visibility:visible!important;height:auto!important}
+  /* Print the whole report, not whichever tab happened to be open, and not a
+     filtered subset — a filtered page on paper is a censored report. */
+  section[hidden],.debt-group[hidden],.finding[hidden]{display:block!important}
+  nav.tabs,.debt-toolbar,.canvas-toolbar,.canvas-help{display:none}
+  .finding,.card,.schema-card{break-inside:avoid}
+  h1,h2,h3{break-after:avoid}
+  .finding>summary::before{content:""}
+}
 </style>
 </head>
 <body>
@@ -274,6 +324,13 @@ const FLABEL = {clients:"Clients",network:"Networking",compute:"Compute",storage
 const fcolor = f => getComputedStyle(document.documentElement).getPropertyValue("--f-"+f).trim() || "#54595d";
 const TYPE_LABEL = {client:"client",mobile:"mobile client",lb:"load balancer",gateway:"API gateway",cdn:"CDN",service:"service",ws:"websocket gateway",worker:"async worker",cron:"scheduler",ml:"model inference","db-sql":"relational database","db-nosql":"NoSQL database","db-graph":"graph database",cache:"in-memory cache",queue:"message queue",stream:"event log / stream",blob:"object storage",search:"search index",ledger:"ledger",monitor:"observability",external:"external service"};
 const dots = n => { n=n||0; return `<span class="f">${"●".repeat(n)}</span>${"●".repeat(Math.max(0,5-n))}`; };
+const DEBT_CATEGORIES = [["boundaries","Boundaries"],["data-ownership","Data ownership"],["coupling","Coupling"],["dependency-contracts","Dependency contracts"],["failure-containment","Failure containment"],["over-engineering","Over-engineering"],["obsolescence","Obsolescence"]];
+const SEV_KEYS = ["blocking","high","medium","low"];
+const SEV_ORDER = {blocking:0,high:1,medium:2,low:3};
+const SEV_LABEL = {blocking:"Blocking",high:"High",medium:"Medium",low:"Low"};
+const SEV_ACTION = {blocking:"Fix with this change",high:"Schedule it",medium:"Fix while you are in there",low:"Record only"};
+const CONF_ORDER = {high:0,medium:1,low:2};
+const byText = new Intl.Collator(undefined,{sensitivity:"base",numeric:true}).compare;
 const archs = D.architectures || [];
 const current = archs.find(a=>a.id==="current") || null;
 const reco = D.comparison?.recommendation || {};
@@ -288,7 +345,8 @@ document.getElementById("rdate").textContent = D.updatedAt || "";
 /* ---------- tabs & sections ---------- */
 const tabDefs = [{id:"overview",label:"Overview"}]
   .concat(archs.map(a=>({id:a.id,label:a.id==="current"?"Current":a.id.toUpperCase()+" — "+shortName(a.name)})))
-  .concat([{id:"compare",label:"Compare"}]);
+  .concat([{id:"compare",label:"Compare"}])
+  .concat((D.debt?.findings||[]).length ? [{id:"debt",label:"Debt"}] : []);
 const tabsNav = document.getElementById("tabs");
 tabsNav.innerHTML = tabDefs.map(t=>`<button role="tab" id="tab-${esc(t.id)}" aria-selected="false" data-tab="${esc(t.id)}">${esc(t.label)}</button>`).join("");
 tabsNav.addEventListener("click", e => { const b=e.target.closest("button"); if(b) location.hash="#"+b.dataset.tab; });
@@ -1426,20 +1484,137 @@ function diffChips(a){
   return `<div class="diffchips">${added?`<span class="dc add">+${added} added</span>`:""}${removed?`<span class="dc rem">−${removed} removed</span>`:""}${modified?`<span class="dc mod">~${modified} modified</span>`:""}</div>`;
 }
 
+/* ---------- debt ---------- */
+function severityRank(f){ return SEV_ORDER[f.severity] ?? 99; }
+function confidenceRank(f){ return CONF_ORDER[f.confidence] ?? 99; }
+function bySeverityThenConfidence(x,y){
+  return severityRank(x)-severityRank(y) || confidenceRank(x)-confidenceRank(y) || byText(x.id||"", y.id||"");
+}
+function severityChip(f){
+  const key = SEV_ORDER[f.severity]!=null ? f.severity : "";
+  return key ? `<span class="dc sev sev-${esc(key)}" title="${esc(SEV_ACTION[key])}">${esc(SEV_LABEL[key])}</span>` : "";
+}
+function findingBody(f){
+  const evidence=f.evidence||[], v=f.verification||{}, lenses=v.lenses||[];
+  const gates=Object.entries(v.gates||{});
+  return `<div class="fbody">
+    ${f.whyItMatters?`<p class="fwhy">${esc(f.whyItMatters)}</p>`:""}
+    <div class="interface-groups">
+      <section class="interface-group"><h4>Evidence</h4>
+        ${evidence.length?evidence.map(e=>`<p class="fev">${esc(e.text||"")}${e.source?`<br><span class="mono" style="color:var(--faint)">${esc(e.source)}</span>`:""}</p>`).join(""):`<p class="fev">—</p>`}
+      </section>
+      <section class="interface-group"><h4>Remedy</h4>
+        <p class="fev"><b>${esc(f.remedy?.action||"—")}</b> — ${esc(f.remedy?.text||"—")}</p>
+        <p class="fev"><b>Effort:</b> ${esc(f.effort||"—")}${f.reversibility?` · ${esc(f.reversibility)}`:""}</p>
+        ${f.blastRadius?`<p class="fev"><b>Blast radius:</b> ${esc(f.blastRadius)}</p>`:""}
+      </section>
+      <section class="interface-group"><h4>Verification</h4>
+        ${gates.length?`<p class="fev"><b>Gates:</b> ${gates.map(([g,r])=>`${esc(g)} ${esc(r)}`).join(" · ")}</p>`:""}
+        ${lenses.map(l=>`<p class="fev"><b>${esc(l.lens)}:</b> ${l.refuted?"refuted":"survived"}${l.objection?` — ${esc(l.objection)}`:""}</p>`).join("")}
+        <p class="fev"><b>Confidence:</b> ${esc(f.confidence||"—")}${(v.tools||[]).length?` · checked with ${esc(v.tools.join(", "))}`:""}</p>
+      </section>
+    </div>
+    ${f.disconfirming?`<p class="fnote"><b>Strongest objection it survived:</b> ${esc(f.disconfirming)}</p>`:""}
+    ${f.justification?`<p class="fnote"><b>Accepted:</b> ${esc(f.justification)}${f.acceptedUntil?` — until ${esc(f.acceptedUntil)}`:""}</p>`:""}
+  </div>`;
+}
+function findingRow(f){
+  const comps=(f.components||[]), resolved=(f.resolvedBy||[]);
+  const meta=[f.remedy?.action, comps.join(" · "),
+              resolved.length?`resolved by ${resolved.map(id=>archName(id)).join(", ")}`:"unresolved by every candidate",
+              f.baselineState].filter(Boolean).join(" · ");
+  // Every token a reader would search for lives in the collapsed row.
+  return `<details class="finding" id="f-${esc(f.id)}" data-sev="${esc(f.severity||"")}" data-comp="${esc(comps.join(" "))}">
+    <summary>${severityChip(f)} <span class="fname">${esc(f.title||f.id)}</span><span class="fmeta mono">${esc(meta)}</span></summary>
+    ${findingBody(f)}
+  </details>`;
+}
+function debtAside(title, list){
+  if(!list.length) return "";
+  return `<details class="debt-aside"><summary>${esc(title)} (${list.length})</summary>
+    ${list.sort(bySeverityThenConfidence).map(findingRow).join("")}</details>`;
+}
+function renderDebt(sec){
+  const all=(D.debt?.findings)||[];
+  const live=all.filter(f=>f.status!=="accepted"&&f.baselineState!=="absent"&&f.severity);
+  const notes=all.filter(f=>!f.severity&&f.status!=="accepted"&&f.baselineState!=="absent");
+  const accepted=all.filter(f=>f.status==="accepted");
+  const gone=all.filter(f=>f.baselineState==="absent"&&f.status!=="accepted");
+  const groups=DEBT_CATEGORIES.map(([key,label])=>[key,label,live.filter(f=>f.category===key).sort(bySeverityThenConfidence)]).filter(g=>g[2].length);
+  const severities=[...SEV_KEYS].filter(k=>live.some(f=>f.severity===k));
+  const components=[...new Set(live.flatMap(f=>f.components||[]))].sort(byText);
+  const checked=D.debt?.checked||[], unverified=D.debt?.unverified||[];
+
+  sec.innerHTML = `<div class="card"><h2>Architectural debt</h2>
+    <p class="fwhy">${live.length} finding${live.length===1?"":"s"} in the implemented architecture, ordered by severity within each category. Every one cites its evidence and survived an attempt to disprove it; the strongest surviving objection is recorded beside each.</p>
+    <div class="debt-toolbar" role="group" aria-label="Filter findings">
+      ${severities.length?`<span class="k">Severity</span>${severities.map(k=>`<button type="button" class="tag" aria-pressed="false" data-kind="sev" data-value="${esc(k)}">${esc(SEV_LABEL[k])}</button>`).join("")}`:""}
+      ${components.length?`<span class="k">Component</span>${components.map(c=>`<button type="button" class="tag" aria-pressed="false" data-kind="comp" data-value="${esc(c)}">${esc(c)}</button>`).join("")}`:""}
+    </div>
+    <p class="debt-status" role="status"></p>
+    ${groups.map(([key,label,items])=>`<section class="debt-group" data-cat="${esc(key)}">
+      <h3 style="font:600 .95rem var(--sans);margin:.9rem 0 .2rem">${esc(label)}<span class="debt-count">(${items.length})</span></h3>
+      ${items.map(findingRow).join("")}
+    </section>`).join("")}
+    ${debtAside("Observations, no remedy proposed", notes)}
+    ${debtAside("Accepted", accepted)}
+    ${debtAside("No longer present", gone)}
+    ${checked.length?`<p class="hint">Categories examined: ${checked.map(esc).join(" · ")}.</p>`:""}
+    ${unverified.length?`<div class="conflict" style="margin-top:.8rem"><span class="k">Could not be established</span><ul class="plain">${unverified.map(u=>`<li>• ${esc(u.check)}${u.reason?` — ${esc(u.reason)}`:""}</li>`).join("")}</ul></div>`:""}
+    <p class="hint">Findings that reappear are matched across runs; whether a re-run surfaces the same set is not something this process can promise.</p>
+  </div>`;
+
+  const status=sec.querySelector(".debt-status");
+  const rows=[...sec.querySelectorAll("details.finding")];
+  function applyFilter(){
+    const on={sev:new Set(),comp:new Set()};
+    sec.querySelectorAll('.debt-toolbar button[aria-pressed="true"]').forEach(b=>on[b.dataset.kind].add(b.dataset.value));
+    let shown=0;
+    for (const row of rows){
+      const okSev = !on.sev.size || on.sev.has(row.dataset.sev);
+      const okComp = !on.comp.size || row.dataset.comp.split(" ").some(c=>on.comp.has(c));
+      row.hidden = !(okSev&&okComp);
+      if(!row.hidden) shown++;
+    }
+    for (const group of sec.querySelectorAll(".debt-group")){
+      const items=[...group.querySelectorAll("details.finding")];
+      const visible=items.filter(r=>!r.hidden).length;
+      group.hidden = visible===0;
+      // A count that keeps saying (7) while showing 2 is a lie the reader has to notice.
+      group.querySelector(".debt-count").textContent = visible===items.length ? `(${items.length})` : `(${visible} of ${items.length})`;
+    }
+    status.textContent = (on.sev.size||on.comp.size) ? `${shown} of ${live.length} findings shown` : `${live.length} findings`;
+  }
+  // One delegated listener, and rows are only ever hidden — never rebuilt — so
+  // nothing the reader has expanded or focused is thrown away by a filter click.
+  sec.querySelector(".debt-toolbar").addEventListener("click", e=>{
+    const b=e.target.closest("button[data-kind]"); if(!b) return;
+    b.setAttribute("aria-pressed", b.getAttribute("aria-pressed")==="true" ? "false" : "true");
+    applyFilter();
+  });
+  applyFilter();
+}
+
 /* ---------- render all sections (after every definition above) ---------- */
 renderOverview(sections.overview);
 for (const a of archs) renderArchV2(sections[a.id], a);
 renderCompare(sections.compare);
+if (sections.debt) renderDebt(sections.debt);
 
 /* ---------- routing ---------- */
 const archIds = archs.map(a=>a.id);
 function show(id){
   if(!sections[id]) id="overview";
   for (const t of tabDefs){ sections[t.id].hidden = t.id!==id; document.getElementById("tab-"+t.id).setAttribute("aria-selected", String(t.id===id)); }
-  window.scrollTo(0,0);
+  const anchor = target() ? sections[id].querySelector("#"+CSS.escape(target())) : null;
+  if (anchor){ if(anchor.tagName==="DETAILS") anchor.open=true; anchor.scrollIntoView(); }
+  else window.scrollTo(0,0);
   if(sections[id]?._api?.fit) requestAnimationFrame(()=>sections[id]._api.fit());
 }
-function cur(){ return (location.hash||"#overview").slice(1); }
+// The tab is the part before the first slash, so an in-page anchor such as
+// #debt/f-dbt-… selects the tab instead of falling through to the overview.
+function cur(){ return (location.hash||"#overview").slice(1).split("/")[0]; }
+function target(){ return (location.hash||"").split("/").slice(1).join("/"); }
 window.addEventListener("hashchange", ()=>show(cur()));
 show(cur());
 const inspectedComponent=new URLSearchParams(location.search).get("inspect");
@@ -1451,6 +1626,9 @@ function step(dir){
 }
 document.addEventListener("keydown", e=>{
   if (e.target.matches("input,textarea,[contenteditable]")) return;
+  // Arrowing between filter chips must not fling the reader into the
+  // architecture carousel; a <button> does not match the guard above.
+  if (e.target.closest("#sec-debt")) return;
   if (e.key==="ArrowLeft") step(-1);
   else if (e.key==="ArrowRight") step(1);
   else if (e.key==="Escape"){ const s=sections[cur()]; s?._api?.clear(); }
