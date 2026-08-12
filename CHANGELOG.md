@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## 1.1.1 — 2026-08-12
+
+### Fixed
+
+- The debt panel opened by describing itself. A hardcoded sentence under the heading said the findings were ordered by severity, cited their evidence, and had survived an attempt to disprove them — the ordering is visible, the evidence sits on every row, and the count it opened with was repeated in the live region directly beneath it. It printed on every report and told a reader nothing. The closing caveat now carries both limits a reader cannot see instead of one: that the set of findings does not converge across runs, and that nothing in the report edits the code.
+
 ## 1.1.0 — 2026-08-12
 
 ### Added
